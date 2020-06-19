@@ -16,9 +16,9 @@
 
     <distributionManagement>
         <repository>
-            <id>praline</id>
-            <name>praline-repo</name>
-            <url>${env.MAVEN_REPO_URL}/praline</url>
+            <id>github</id>
+            <name>GitHub j-zink-wuerzburg Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/j-zink-wuerzburg/praline</url>
         </repository>
     </distributionManagement>
 
@@ -38,3 +38,4 @@
     </build>
 
 </project>
+
