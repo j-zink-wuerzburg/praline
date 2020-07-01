@@ -29,7 +29,7 @@ public class AllTests {
     public static final String[] DATA_SETS =
             {
                     "generated_2020-06-04_18-39-49",
-//                    "lc-praline-package-2020-05-18"
+                    "lc-praline-package-2020-05-18"
             };
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
     private static final String PATH_RESULTS =

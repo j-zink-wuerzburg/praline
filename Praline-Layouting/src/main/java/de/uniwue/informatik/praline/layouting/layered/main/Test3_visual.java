@@ -20,9 +20,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class Test3_visual {
 
     public static final String PATH_DATA_SET =
-            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
+//            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
 //            "Praline-Layouting/data/lc-praline-package-2020-05-18";
-//            "Praline-Layouting/data/topology-zoo";
+            "Praline-Layouting/data/topology-zoo";
 
 
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
