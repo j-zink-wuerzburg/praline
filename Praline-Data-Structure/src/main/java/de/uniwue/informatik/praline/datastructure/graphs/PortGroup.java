@@ -59,6 +59,10 @@ public class PortGroup implements PortComposition, ReferenceObject {
         this(null, DEFAULT_IS_ORDERED);
     }
 
+    public PortGroup(boolean isOrdered) {
+        this(null, isOrdered);
+    }
+
     public PortGroup(int numberOfPortsPlannedToAdd) {
         portCompositions = new ArrayList<>(numberOfPortsPlannedToAdd);
         ordered = DEFAULT_IS_ORDERED;
@@ -73,10 +77,10 @@ public class PortGroup implements PortComposition, ReferenceObject {
             @JsonProperty("portCompositions") final Collection<PortComposition> portCompositions,
             @JsonProperty("ordered") final boolean ordered
     ) {
-        this.portCompositions = newArrayListNullSafe(portCompositions);
         this.ordered = ordered;
-        for (PortComposition portComposition : this.portCompositions) {
-            portComposition.setPortGroup(this);
+        this.portCompositions = new ArrayList<>();
+        for (PortComposition portComposition : newArrayListNullSafe(portCompositions)) {
+            addPortComposition(portComposition);
         }
     }
 

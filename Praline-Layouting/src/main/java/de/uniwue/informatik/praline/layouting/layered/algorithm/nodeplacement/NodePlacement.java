@@ -7,7 +7,7 @@ import de.uniwue.informatik.praline.datastructure.labels.Label;
 import de.uniwue.informatik.praline.datastructure.labels.LabeledObject;
 import de.uniwue.informatik.praline.datastructure.labels.TextLabel;
 import de.uniwue.informatik.praline.datastructure.shapes.Rectangle;
-import de.uniwue.informatik.praline.layouting.layered.algorithm.Sugiyama;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CMResult;
 import de.uniwue.informatik.praline.io.output.util.DrawingInformation;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.restore.OneNodeEdge;
@@ -16,7 +16,7 @@ import java.util.*;
 
 public class NodePlacement {
 
-    private Sugiyama sugy;
+    private SugiyamaLayouter sugy;
     private DrawingInformation drawInfo;
     private List<List<Port>> structure;
     private CMResult cmResult;
@@ -26,18 +26,19 @@ public class NodePlacement {
     private List<Port> dummyPorts;
     private List<Edge> dummyEdges;
     private Set<Edge> oneNodeEdges;
-
-    private int portnumber; //TODO: this was static before; I don't know why this should be static?
-
-    // stuff from paper
+    private int portnumber;
+    // variables according to paper:
     private Map<Port, PortValues> portValues;
     private double delta;
 
-    public NodePlacement (Sugiyama sugy, CMResult cmResult, DrawingInformation drawingInformation) {
+    public NodePlacement (SugiyamaLayouter sugy, CMResult cmResult, DrawingInformation drawingInformation) {
         this.sugy = sugy;
         this.cmResult = cmResult;
         this.drawInfo = drawingInformation;
     }
+
+    //TODO: re-insert ports without edges in this step. Take care: this may be a "unification" node and then the
+    // ports should end up in different port groups (be inserted in the correct order on the correct side of the vertex)
 
     public void placeNodes () {
         Map<Port, Double> xValues = new LinkedHashMap<>();
@@ -91,7 +92,7 @@ public class NodePlacement {
         // bring back original order
         for (List<Port> order : structure) {
             Collections.reverse(order);
-       }
+        }
         // change to positive x-values
         makePositive();
         // creates shapes for all nodes
@@ -184,7 +185,7 @@ public class NodePlacement {
         List<Port> ports = new ArrayList<>();
         ports.add(p1);
         ports.add(p2);
-        Edge e = new Edge(ports);
+        new Edge(ports);
         rankBottomPorts.add(p1);
         rankTopPorts.add(p2);
         dummyVertex.addPortComposition(p1);
@@ -296,7 +297,7 @@ public class NodePlacement {
                     }
                 }
             }
-            // initialise root and align according to Alg. 2 from the paper
+            // initialise root and align according to Alg. 2 from paper
             verticalAlignment(stack);
         }
     }
@@ -460,33 +461,6 @@ public class NodePlacement {
             currentY += ((2 * drawInfo.getPortHeight()) + drawInfo.getDistanceBetweenLayers());
         }
     }
-
-//    private void drawFirst() {
-//        Set<Edge> edges = new LinkedHashSet<>();
-//        sugy.getGraph().addVertex(dummyVertex);
-//        double currentY = 10;
-//        boolean bool = true;
-//        for (List<Port> layer : structure) {
-//            for (Port port : layer) {
-//                Rectangle portShape = new Rectangle((portValues.get(port).getX() - (drawInfo.getPortWidth() / 2.0)), currentY, drawInfo.getPortWidth(), drawInfo.getPortHeight(),null);
-//                port.setShape(portShape);
-//                for (Edge edge : port.getEdges()) {
-//                    if (!sugy.getGraph().getEdges().contains(edge)) {
-//                        sugy.getGraph().addEdge(edge);
-//                        edges.add(edge);
-//                    }
-//                }
-//            }
-//            if (bool) currentY += 12;
-//            else currentY += 20;
-//        }
-//        for (Vertex node : sugy.getGraph().getVertices()) {
-//            node.setShape(new Rectangle(0,0,0,0, null));
-//        }
-//        sugy.drawResult("test11x.svg");
-//        for (Edge edge : edges) sugy.getGraph().removeEdge(edge);
-//        sugy.getGraph().removeVertex(dummyVertex);
-//    }
 
     private void createMainLabel (LabeledObject lo) {
         Label newLabel = new TextLabel("" + portnumber++);

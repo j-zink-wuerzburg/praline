@@ -5,6 +5,7 @@ import de.uniwue.informatik.praline.datastructure.paths.PolygonalPath;
 import de.uniwue.informatik.praline.datastructure.shapes.Rectangle;
 import de.uniwue.informatik.praline.datastructure.shapes.Shape;
 import de.uniwue.informatik.praline.datastructure.utils.Serialization;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.kieleraccess.util.OrthogonalCrossingsAnalysis;
 import org.eclipse.elk.alg.layered.ElkLayered;
 import org.eclipse.elk.alg.layered.graph.LGraph;
@@ -17,7 +18,6 @@ import org.eclipse.elk.core.util.BasicProgressMonitor;
 import org.eclipse.elk.graph.*;
 import org.eclipse.elk.graph.impl.ElkGraphFactoryImpl;
 import org.eclipse.emf.common.util.EList;
-import de.uniwue.informatik.praline.layouting.layered.algorithm.Sugiyama;
 import de.uniwue.informatik.praline.io.output.util.DrawingInformation;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
 
@@ -28,12 +28,13 @@ import java.util.*;
 public class KielerDrawer {
 
     public static final String JSON_PATH =
-//            "data/largest-comp-praline-package-2020-05-18/lc-praline-1dda4e2a-ae64-4e76-916a-822c4e838c41.json";
-            "data/example-very-small/praline-a0b0b5a2-2c23-43b0-bb87-4ddeb34d5a02.json";
-//            "data/example-pseudo-plans/praline-pseudo-plan-0a94e4bf6d729042.json";
-//            "data/example-pseudo-plans/praline-pseudo-plan-0f90e022f10bae3f.json";
+//            "Praline-Layouting/data/lc-praline-package-2020-05-18/lc-praline-1dda4e2a-ae64-4e76-916a-822c4e838c41.json";
+//            "Praline-Layouting/data/example-very-small/praline-a0b0b5a2-2c23-43b0-bb87-4ddeb34d5a02.json";
+//            "Praline-Layouting/data/example-pseudo-plans/praline-pseudo-plan-0a94e4bf6d729042.json";
+            "Praline-Layouting/data/praline-package-2020-05-18/praline-0488185b-18b4-4780-a6c8-1d9ece91252e.json";
+//            "Praline-Layouting/data/example-pseudo-plans/praline-pseudo-plan-0f90e022f10bae3f.json";
 
-    public static final String SVG_TARGET_PATH = "testKIELER.svg";
+    public static final String SVG_TARGET_PATH = "Praline-Layouting/results/testKIELER.svg";
 
     public static void main(String[] args) throws IOException {
         //test this class here
@@ -50,7 +51,7 @@ public class KielerDrawer {
         System.out.println("KIELER test done successfully");
     }
 
-    private Sugiyama sugiyForInternalUse;
+    private SugiyamaLayouter sugiyForInternalUse;
     private DrawingInformation drawInfo;
     private LinkedHashMap<Vertex, ElkNode> vertices;
     private LinkedHashMap<Port, ElkPort> ports;
@@ -62,33 +63,34 @@ public class KielerDrawer {
     }
 
     public KielerDrawer(Graph graph, DrawingInformation drawInfo) {
-        this(graph, DirectionMethod.FORCE, drawInfo);
+        this(graph, DirectionMethod.FORCE, 1, drawInfo);
     }
 
-    public KielerDrawer(Graph graph, DirectionMethod directionMethod) {
-        this(graph, directionMethod, new DrawingInformation());
+    public KielerDrawer(Graph graph, DirectionMethod directionMethod, int numberOfIterationsFD) {
+        this(graph, directionMethod, numberOfIterationsFD, new DrawingInformation());
     }
 
-    public KielerDrawer(Graph graph, DirectionMethod directionMethod, DrawingInformation drawInfo) {
+    public KielerDrawer(Graph graph, DirectionMethod directionMethod, int numberOfIterationsFD,
+                        DrawingInformation drawInfo) {
 
         this.drawInfo = drawInfo;
 
         //do first steps of the "main" implementation to get a directed graph from an undirected one
-        sugiyForInternalUse = new Sugiyama(graph);
+        sugiyForInternalUse = new SugiyamaLayouter(graph);
 
         sugiyForInternalUse.construct();
 
-        sugiyForInternalUse.assignDirections(directionMethod);
+        sugiyForInternalUse.assignDirections(directionMethod, numberOfIterationsFD);
 
         sugiyForInternalUse.assignLayers();
     }
 
 
-    public KielerDrawer(Sugiyama sugiyWithPrecomputedDirectedGraph) {
+    public KielerDrawer(SugiyamaLayouter sugiyWithPrecomputedDirectedGraph) {
         this(sugiyWithPrecomputedDirectedGraph, new DrawingInformation());
     }
 
-    public KielerDrawer(Sugiyama sugiyWithPrecomputedDirectedGraph, DrawingInformation drawInfo) {
+    public KielerDrawer(SugiyamaLayouter sugiyWithPrecomputedDirectedGraph, DrawingInformation drawInfo) {
 
         this.drawInfo = drawInfo;
 
@@ -172,6 +174,9 @@ public class KielerDrawer {
         }
         for (Edge pralineEdge : pralineGraph.getEdges()) {
             ElkEdge edge = edges.get(pralineEdge);
+            if (edge.getSections().isEmpty()) {
+                continue;
+            }
             ElkEdgeSection path = edge.getSections().get(0);
             pralineEdge.addPath(new PolygonalPath(
                     new Point2D.Double(path.getStartX(), path.getStartY()),
@@ -223,6 +228,14 @@ public class KielerDrawer {
             vertex.getPorts().addAll(portsOfThisVertex);
             if (List.class.isAssignableFrom(portsOfThisVertex.getClass())) {
                 vertex.setProperty(LayeredOptions.PORT_CONSTRAINTS, PortConstraints.FIXED_ORDER);
+            }
+            else {
+                //if it contains a group, fix at least sides
+                for (PortComposition portComposition : pralineVertex.getPortCompositions()) {
+                    if (portComposition instanceof PortGroup) {
+                        vertex.setProperty(LayeredOptions.PORT_CONSTRAINTS, PortConstraints.FIXED_SIDE);
+                    }
+                }
             }
 
             //find port pairings

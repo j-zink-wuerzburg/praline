@@ -4,6 +4,7 @@ import de.uniwue.informatik.praline.datastructure.graphs.*;
 import de.uniwue.informatik.praline.datastructure.paths.Path;
 import de.uniwue.informatik.praline.datastructure.paths.PolygonalPath;
 import de.uniwue.informatik.praline.datastructure.shapes.Rectangle;
+import de.uniwue.informatik.praline.datastructure.shapes.Shape;
 import de.uniwue.informatik.praline.datastructure.utils.PortUtils;
 import de.uniwue.informatik.praline.io.output.util.DrawingInformation;
 import org.apache.batik.dom.GenericDOMImplementation;
@@ -85,22 +86,18 @@ public class SVGDrawer {
 
 
         for (Vertex node : graph.getVertices()) {
-            if (node.getLabelManager().getMainLabel().toString().startsWith("v") || node.getLabelManager().getMainLabel().toString().startsWith("G")  || node.getLabelManager().getMainLabel().toString().startsWith("P") || node.getLabelManager().getMainLabel().toString().startsWith("E")) {
-                if (node.getShape() == null) {
-                    node.setShape(new Rectangle(drawInfo.getVertexMinimumWidth(), drawInfo.getVertexHeight()));
-                }
-                Rectangle2D nodeRectangle = (Rectangle2D) node.getShape();
-                g2d.draw(nodeRectangle);
-                //if (node.getLabelManager().getMainLabel().toString().startsWith("v")){
-                g2d.drawString(node.getLabelManager().getMainLabel().toString(),
-                        (float) ((nodeRectangle).getX() + drawInfo.getHorizontalTextOffset()),
-                        (float) (((nodeRectangle).getY()
-                                + (nodeRectangle).getHeight()
-                                + drawInfo.getVerticalTextOffset())));
-                //}
-                for (PortComposition pc : node.getPortCompositions()) {
-                    paintPortComposition(pc, g2d);
-                }
+            if (node.getShape() == null) {
+                node.setShape(new Rectangle(drawInfo.getVertexMinimumWidth(), drawInfo.getVertexHeight()));
+            }
+            Rectangle2D nodeRectangle = (Rectangle2D) node.getShape();
+            g2d.draw(nodeRectangle);
+            g2d.drawString(node.getLabelManager().getMainLabel().toString(),
+                    (float) ((nodeRectangle).getX() + drawInfo.getHorizontalTextOffset()),
+                    (float) (((nodeRectangle).getY()
+                            + (nodeRectangle).getHeight()
+                            + drawInfo.getVerticalTextOffset())));
+            for (PortComposition pc : node.getPortCompositions()) {
+                paintPortComposition(pc, g2d);
             }
         }
         for (Edge edge : graph.getEdges()) {
@@ -131,16 +128,14 @@ public class SVGDrawer {
         double maxY = Double.NEGATIVE_INFINITY;
 
         for (Vertex node : graph.getVertices()) {
-            if (node.getLabelManager().getMainLabel().toString().startsWith("v") || node.getLabelManager().getMainLabel().toString().startsWith("G")  || node.getLabelManager().getMainLabel().toString().startsWith("P") || node.getLabelManager().getMainLabel().toString().startsWith("E")) {
-                if (node.getShape() == null) {
-                    node.setShape(new Rectangle(drawInfo.getVertexMinimumWidth(), drawInfo.getVertexHeight()));
-                }
-                Rectangle2D nodeRectangle = (Rectangle2D) node.getShape();
-                minX = Math.min(minX, nodeRectangle.getX());
-                maxX = Math.max(maxX, nodeRectangle.getX() + nodeRectangle.getWidth());
-                minY = Math.min(minY, nodeRectangle.getY());
-                maxY = Math.max(maxY, nodeRectangle.getY() + nodeRectangle.getHeight());
+            if (node.getShape() == null) {
+                node.setShape(new Rectangle(drawInfo.getVertexMinimumWidth(), drawInfo.getVertexHeight()));
             }
+            Rectangle2D nodeRectangle = (Rectangle2D) node.getShape();
+            minX = Math.min(minX, nodeRectangle.getX());
+            maxX = Math.max(maxX, nodeRectangle.getX() + nodeRectangle.getWidth());
+            minY = Math.min(minY, nodeRectangle.getY());
+            maxY = Math.max(maxY, nodeRectangle.getY() + nodeRectangle.getHeight());
         }
         for (Edge edge : graph.getEdges()) {
             if (!edge.getPaths().isEmpty()) {
@@ -167,6 +162,11 @@ public class SVGDrawer {
     private void drawPortPairing(Port port0, Port port1, Graphics2D g2d) {
         Port lowerPort = port0.getShape().getYPosition() < port1.getShape().getYPosition() ? port0 : port1;
         Port upperPort = port0 == lowerPort ? port1 : port0;
+
+        if (lowerPort.getShape().equals(Port.DEFAULT_SHAPE_TO_BE_CLONED)
+                || upperPort.getShape().equals(Port.DEFAULT_SHAPE_TO_BE_CLONED)) {
+            return;
+        }
 
         Color saveColor = g2d.getColor();
         g2d.setColor(drawInfo.getPortPairingColor());

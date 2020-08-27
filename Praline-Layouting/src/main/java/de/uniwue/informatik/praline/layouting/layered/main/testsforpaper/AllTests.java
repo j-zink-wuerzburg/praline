@@ -4,7 +4,7 @@ import de.uniwue.informatik.praline.datastructure.graphs.Graph;
 import de.uniwue.informatik.praline.datastructure.graphs.Vertex;
 import de.uniwue.informatik.praline.datastructure.shapes.Rectangle;
 import de.uniwue.informatik.praline.datastructure.utils.Serialization;
-import de.uniwue.informatik.praline.layouting.layered.algorithm.Sugiyama;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
 import de.uniwue.informatik.praline.layouting.layered.kieleraccess.KielerDrawer;
@@ -28,7 +28,8 @@ public class AllTests {
     public static final String PATH_DATA_SET = "Praline-Layouting/data";
     public static final String[] DATA_SETS =
             {
-                    "generated_2020-06-04_18-39-49",
+//                    "generated_2020-06-04_18-39-49",
+//                    "generated_2020-08-20_04-42-39",
                     "lc-praline-package-2020-05-18"
             };
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
@@ -218,7 +219,7 @@ public class AllTests {
 
         int numberVtcs = 0;
         for (int i = 0; i < noi ; i++) {
-//            Sugiyama lastSugiy = null;
+//            SugiyamaLayouter lastSugiy = null;
             for (String method : methods) {
                 System.out.println("Progress: " + progress() + "/" + totalSteps);
 //                System.out.println(method);
@@ -229,7 +230,7 @@ public class AllTests {
 //                ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
                 long startTime = mxBean.getThreadCpuTime(Thread.currentThread().getId());
 
-                Sugiyama sugiy = new Sugiyama(graph);
+                SugiyamaLayouter sugiy = new SugiyamaLayouter(graph);
 
                 sugiy.construct();
 
@@ -252,7 +253,7 @@ public class AllTests {
                         }
                     }
 //                    System.out.println("da_precomp: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
-                    sugiy.assignDirections(directionMethod);
+                    sugiy.assignDirections(directionMethod, 1);
 //                }
 
 //                System.out.println("da: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
