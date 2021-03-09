@@ -7,6 +7,7 @@ import de.uniwue.informatik.praline.datastructure.labels.LabelManager;
 import de.uniwue.informatik.praline.datastructure.labels.LabeledObject;
 import de.uniwue.informatik.praline.datastructure.shapes.Shape;
 import de.uniwue.informatik.praline.datastructure.shapes.ShapedObject;
+import de.uniwue.informatik.praline.datastructure.utils.EqualLabeling;
 
 import java.util.*;
 
@@ -44,9 +45,9 @@ public class Vertex implements ShapedObject, LabeledObject, ReferenceObject {
     private final List<PortComposition> portCompositions;
     private final LinkedHashSet<Port> ports;
     private VertexGroup vertexGroup;
-    private final LabelManager labelManager;
-    private Shape shape;
-    private String reference;
+    protected final LabelManager labelManager;
+    protected Shape shape;
+    protected String reference;
 
 
     /*==========
@@ -188,6 +189,15 @@ public class Vertex implements ShapedObject, LabeledObject, ReferenceObject {
             return false;
         }
         //not yet contained -> add it
+
+        //but first remove it as direct child of a port group of a vertex if it was there before
+        if (pc.getPortGroup() != null) {
+            pc.getPortGroup().removePortComposition(pc);
+        }
+        else if (pc.getVertex() != null) {
+            pc.getVertex().removePortComposition(pc);
+        }
+
         portCompositions.add(pc);
         assignPortCompositionRecursivelyToVertex(pc, this);
 
@@ -200,6 +210,8 @@ public class Vertex implements ShapedObject, LabeledObject, ReferenceObject {
     /**
      *
      * @param pc
+     *      the passed {@link PortComposition} does not need to be on the top level -- it can also be contained
+     *      somewhere in the hierarchy tree of {@link PortGroup}s of this {@link Vertex}.
      * @return
      *      if false is returned there is no such {@link PortComposition} or something else went wrong (e. g. failed
      *      by removing {@link Port}s contained in the passed {@link PortComposition})
@@ -321,5 +333,20 @@ public class Vertex implements ShapedObject, LabeledObject, ReferenceObject {
     @Override
     public String toString() {
         return labelManager.getStringForLabeledObject();
+    }
+
+
+    /*==========
+     * equalLabeling
+     *==========*/
+
+    @Override
+    public boolean equalLabeling(LabeledObject o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Vertex vertex = (Vertex) o;
+        return EqualLabeling.equalLabelingLists(new ArrayList<>(portCompositions),
+                new ArrayList<>(vertex.portCompositions)) && labelManager.equalLabeling(vertex.labelManager) &&
+                Objects.equals(reference, vertex.reference);
     }
 }

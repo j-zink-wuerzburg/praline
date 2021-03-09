@@ -3,8 +3,9 @@ package de.uniwue.informatik.praline.datastructure.shapes;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import de.uniwue.informatik.praline.datastructure.styles.ShapeStyle;
+import de.uniwue.informatik.praline.datastructure.utils.ArithmeticOperation;
 
-import java.awt.*;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Objects;
@@ -15,15 +16,14 @@ import java.util.Objects;
  * size ({@link Rectangle#getWidth()} + {@link Rectangle#getHeight()}).
  * The position is relative to the top left corner of the {@link Rectangle}.
  */
-@JsonPropertyOrder({ "xposition", "yposition", "width", "height", "color" })
+@JsonPropertyOrder({ "xposition", "yposition", "width", "height", "shapeStyle" })
 public class Rectangle extends Rectangle2D.Double implements Shape {
-
 
     /*==========
      * Instance variables
      *==========*/
 
-    private Color color;
+    private ShapeStyle shapeStyle;
 
 
     /*==========
@@ -38,12 +38,10 @@ public class Rectangle extends Rectangle2D.Double implements Shape {
      *
      * @param x
      * @param y
-     * @param color
-     *      color can be set to null -- this parameter was necessary to make this constructor distinguishable
-     *      from constructor {@link Rectangle#Rectangle(double width, double height)} with width and height.
+     * @param shapeStyle
      */
-    public Rectangle(double x, double y, Color color) {
-        this(x, y, UNDEFINED_LENGTH, UNDEFINED_LENGTH, color);
+    public Rectangle(double x, double y, ShapeStyle shapeStyle) {
+        this(x, y, UNDEFINED_LENGTH, UNDEFINED_LENGTH, shapeStyle);
     }
 
     public Rectangle(double width, double height) {
@@ -60,10 +58,10 @@ public class Rectangle extends Rectangle2D.Double implements Shape {
             @JsonProperty("yposition") final double y,
             @JsonProperty("width") final double width,
             @JsonProperty("height") final double height,
-            @JsonProperty("color") final Color color
+            @JsonProperty("shapeStyle") final ShapeStyle shapeStyle
     ) {
         super(x, y, width, height);
-        this.color = color != null ? color : DEFAULT_COLOR;
+        this.shapeStyle = shapeStyle == null ? ShapeStyle.DEFAULT_SHAPE_STYLE : shapeStyle;
     }
 
 
@@ -87,13 +85,23 @@ public class Rectangle extends Rectangle2D.Double implements Shape {
     }
 
     @Override
-    public Color getColor() {
-        return color;
+    public ShapeStyle getShapeStyle() {
+        return shapeStyle;
     }
 
     @Override
-    public void setColor(Color c) {
-        this.color = c;
+    public void setShapeStyle(ShapeStyle shapeStyle) {
+        this.shapeStyle = shapeStyle;
+    }
+
+    /*==========
+     * Modifiers
+     *==========*/
+
+    @Override
+    public void translate(double xOffset, double yOffset) {
+        this.x += xOffset;
+        this.y += yOffset;
     }
 
     /*==========
@@ -101,19 +109,25 @@ public class Rectangle extends Rectangle2D.Double implements Shape {
      *==========*/
 
     public boolean liesOnBoundary(Point2D.Double point) {
-        if ((point.x == this.x || point.x == this.x + this.width)
-                && this.y <= point.y && point.y <= this.y + this.height) {
+        if ((ArithmeticOperation.precisionEqual(point.x, this.x) ||
+                ArithmeticOperation.precisionEqual(point.x, this.x + this.width))
+                && ArithmeticOperation.precisionInRange(point.y, this.y, this.y + this.height)) {
             return true;
         }
-        if ((point.y == this.y || point.y == this.y + this.height)
-                && this.x <= point.x && point.x <= this.x + this.width) {
+        if ((ArithmeticOperation.precisionEqual(point.y, this.y) ||
+                ArithmeticOperation.precisionEqual(point.y, this.y + this.height))
+                && ArithmeticOperation.precisionInRange(point.x, this.x, this.x + this.width)) {
             return true;
         }
         return false;
     }
 
+    public boolean containsInsideOrOnBoundary(Point2D.Double point) {
+        return liesOnBoundary(point) || contains(point);
+    }
+
     /*==========
-     * Clone, equals, hashCode
+     * clone & equals & hashCode
      *==========*/
 
     @Override
@@ -130,11 +144,11 @@ public class Rectangle extends Rectangle2D.Double implements Shape {
                 java.lang.Double.compare(that.getY(), getY()) == 0 &&
                 java.lang.Double.compare(that.getWidth(), getWidth()) == 0 &&
                 java.lang.Double.compare(that.getHeight(), getHeight()) == 0 &&
-                Objects.equals(color, that.color);
+                Objects.equals(shapeStyle, that.shapeStyle);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), color);
+        return Objects.hash(super.hashCode(), shapeStyle);
     }
 }

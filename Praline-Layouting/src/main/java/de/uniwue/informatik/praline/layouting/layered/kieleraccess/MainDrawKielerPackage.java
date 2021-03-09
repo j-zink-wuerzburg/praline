@@ -1,10 +1,12 @@
-package de.uniwue.informatik.praline.layouting.layered.main;
+package de.uniwue.informatik.praline.layouting.layered.kieleraccess;
 
 import de.uniwue.informatik.praline.datastructure.graphs.Graph;
 import de.uniwue.informatik.praline.datastructure.utils.Serialization;
-import de.uniwue.informatik.praline.layouting.layered.algorithm.Sugiyama;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.layerassignment.LayerAssignmentMethod;
+import de.uniwue.informatik.praline.layouting.layered.main.util.CrossingsCounting;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,22 +19,27 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-public class Test3_visual {
+public class MainDrawKielerPackage {
 
     public static final String PATH_DATA_SET =
-//            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
-//            "Praline-Layouting/data/lc-praline-package-2020-05-18";
-            "Praline-Layouting/data/topology-zoo";
+            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
 
 
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
     public static final String PATH_RESULTS =
-            "Praline-Layouting/results/all-svgs-" + DATE_FORMAT.format(new Date());
+            "Praline-Layouting/results/all-svgs-kieler-" + DATE_FORMAT.format(new Date());
 
-    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 20;
+    private static final boolean CHECK_COMPLETENESS_OF_GRAPH = true;
 
-    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 10;
+    private static final DirectionMethod DIRECTION_METHOD = DirectionMethod.FORCE;
 
+    private static final LayerAssignmentMethod LAYER_ASSIGNMENT_METHOD = LayerAssignmentMethod.NETWORK_SIMPLEX;
+
+    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 1; //5;
+
+    private static final int NUMBER_OF_FORCE_DIRECTED_ITERATIONS = 1; //10;
+
+    private static final int NUMBER_OF_PARALLEL_THREADS = 1; //8;
 
 
     private static int progressCounter = 0;
@@ -49,7 +56,8 @@ public class Test3_visual {
         File[] directoryListing = dir.listFiles();
         if (directoryListing != null) {
             for (File child : directoryListing) {
-                if (child.getName().endsWith(".json")) {
+                if (child.getName().endsWith(".json") &&
+                        (!PATH_DATA_SET.endsWith("readable-2020-09-04") || child.getName().endsWith("-praline.json"))) {
                     files.add(child);
                 }
             }
@@ -58,7 +66,7 @@ public class Test3_visual {
         new File(PATH_RESULTS).mkdirs();
 
         List<Callable<String>> tasks = new ArrayList<>();
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUMBER_OF_PARALLEL_THREADS);
         int jj = 0;
         progressCounter = 0;
         totalSteps = files.size();
@@ -83,38 +91,44 @@ public class Test3_visual {
     public static void parallelio (File file) throws IOException {
         int numberOfVertices = -1;
         int bestNumberOfCrossings = Integer.MAX_VALUE;
-        Sugiyama bestRunSugy = null;
+        KielerLayouter bestRun = null;
 
         for (int i = 0; i < NUMBER_OF_REPETITIONS_PER_GRAPH; i++) {
             Graph graph = Serialization.read(file, Graph.class);
 
             numberOfVertices = graph.getVertices().size();
 
-            Sugiyama sugy = new Sugiyama(graph);
+            KielerLayouter kielerLayouter =
+                    new KielerLayouter(graph, DIRECTION_METHOD, LAYER_ASSIGNMENT_METHOD,
+                            NUMBER_OF_FORCE_DIRECTED_ITERATIONS);
 
-            sugy.construct();
-            sugy.assignDirections(DirectionMethod.FORCE);
-            sugy.assignLayers();
-            sugy.createDummyNodes();
-            sugy.crossingMinimization(CrossingMinimizationMethod.PORTS, NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
+            kielerLayouter.computeLayout();
+            Graph resultGraph = kielerLayouter.getGraph();
 
-            int numberOfCrossings = sugy.getNumberOfCrossings();
-
-            sugy.nodePositioning();
-            sugy.edgeRouting();
-            sugy.prepareDrawing();
+            int numberOfCrossings = CrossingsCounting.countNumberOfCrossings(resultGraph);
 
             if (bestNumberOfCrossings > numberOfCrossings) {
                 bestNumberOfCrossings = numberOfCrossings;
-                bestRunSugy = sugy;
+                bestRun = kielerLayouter;
             }
         }
 
+        if (CHECK_COMPLETENESS_OF_GRAPH) {
+            Graph sameGraphReloaded = null;
+            try {
+                sameGraphReloaded = Serialization.read(file, Graph.class);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if (!bestRun.getGraph().equalLabeling(sameGraphReloaded)) {
+                System.out.println("Warning! Drawn graph and input graph differ.");
+            }
+        }
 
         String filename = file.getName();
         filename = filename.substring(0, filename.length() - 5); //remove ".json"
         filename = "n" + numberOfVertices + "cr" + bestNumberOfCrossings + filename + ".svg";
-        bestRunSugy.drawResult(PATH_RESULTS + File.separator + filename);
+        bestRun.generateSVG(PATH_RESULTS + File.separator + filename);
         System.out.println("Progress: " + progress() + "/" + totalSteps);
     }
 }

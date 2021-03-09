@@ -5,6 +5,7 @@ import de.uniwue.informatik.praline.datastructure.utils.Serialization;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.layerassignment.LayerAssignmentMethod;
 import de.uniwue.informatik.praline.layouting.layered.main.util.BendsCounting;
 import de.uniwue.informatik.praline.layouting.layered.main.util.CrossingsCounting;
 
@@ -14,50 +15,83 @@ import java.io.IOException;
 public class MainDrawSinglePlan {
 
     private static final String SOURCE_PATH =
-//            "Praline-Layouting/data/lc-praline-package-2020-05-18/lc-praline-1dda4e2a-ae64-4e76-916a-822c4e838c41.json";
-//            "Praline-Layouting/data/lc-praline-package-2020-05-18/lc-praline-5c5becad-d634-4081-b7c1-8a652fc6d023.json";
-//            "Praline-Layouting/data/praline-package-2020-05-18/praline-0488185b-18b4-4780-a6c8-1d9ece91252e.json";
-//            "Praline-Layouting/data/praline-package-2020-05-18/praline-7c84fecd-8d2c-4f71-b95e-c496c68b8109.json";
-            "Praline-Layouting/data/praline-package-2020-05-18/praline-d5311cb8-84d5-45e6-afcb-7a28c4451b89.json";
-//            "Praline-Layouting/data/praline-package-2020-05-18/praline-7ecbc1c4-3458-4769-8f58-e52e8fa4a5b8.json";
-//            "Praline-Layouting/data/praline-package-2020-05-18/praline-06001ee4-a1ee-4d84-85ff-93792f56e5c7.json";
-//            "Praline-Layouting/data/generated_2020-06-04_18-39-49/praline-pseudo-plan-2dfedde45c413b8f.json";
-//            "Praline-Layouting/data/example-very-small/praline-a0b0b5a2-2c23-43b0-bb87-4ddeb34d5a02.json";
-//            "Praline-Layouting/data/example-very-small/praline-pseudo-plan-0e59d04df679e020.json";
+            "Praline-Layouting/data/generated_2020-08-20_04-42-39/praline-pseudo-plan-a7118c7293f015c8.json";
 
     private static final String TARGET_PATH =
             "Praline-Layouting/results/singleTest.svg";
 
+    private static final boolean CHECK_COMPLETENESS_OF_GRAPH = true;
+
+    private static final DirectionMethod DIRECTION_METHOD = DirectionMethod.FORCE;
+
+    private static final LayerAssignmentMethod LAYER_ASSIGNMENT_METHOD = LayerAssignmentMethod.NETWORK_SIMPLEX;
+
+    private static final CrossingMinimizationMethod CROSSING_MINIMIZATION_METHOD = CrossingMinimizationMethod.PORTS;
+
+    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 1; //5;
+
+    private static final int NUMBER_OF_FORCE_DIRECTED_ITERATIONS = 1; //10;
+
+    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 1; //3;
+
     public static void main(String[] args) {
+        SugiyamaLayouter bestRun = null;
+        int fewestCrossings = Integer.MAX_VALUE;
 
-        File file = new File(SOURCE_PATH);
-        Graph graph = null;
-        try {
-            graph = Serialization.read(file, Graph.class);
-        } catch (IOException e) {
-            e.printStackTrace();
+        for (int i = 0; i < NUMBER_OF_REPETITIONS_PER_GRAPH; i++) {
+            File file = new File(SOURCE_PATH);
+            Graph graph = null;
+            try {
+                graph = Serialization.read(file, Graph.class);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            System.out.println("Read graph " + SOURCE_PATH);
+            System.out.println();
+
+            SugiyamaLayouter sugy = new SugiyamaLayouter(graph);
+
+            sugy.computeLayout(DIRECTION_METHOD, LAYER_ASSIGNMENT_METHOD, NUMBER_OF_FORCE_DIRECTED_ITERATIONS,
+                    CROSSING_MINIMIZATION_METHOD, NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
+
+            int crossings = CrossingsCounting.countNumberOfCrossings(graph);
+            System.out.println("Computed drawing with " + crossings + " crossings " +
+                    "and " + BendsCounting.countNumberOfBends(graph) + " bends.");
+            System.out.println();
+
+            if (crossings < fewestCrossings) {
+                bestRun = sugy;
+                fewestCrossings = crossings;
+            }
+
+            if (i == NUMBER_OF_REPETITIONS_PER_GRAPH - 1) {
+                bestRun.drawResult(TARGET_PATH);
+
+                if (i > 1) {
+                    System.out.println();
+                    System.out.println("Best run had " + fewestCrossings + " crossings -> to be saved as svg");
+                }
+                System.out.println("Created svg " + TARGET_PATH);
+                System.out.println();
+            }
+
+            if (CHECK_COMPLETENESS_OF_GRAPH) {
+                Graph sameGraphReloaded = null;
+                try {
+                    sameGraphReloaded = Serialization.read(file, Graph.class);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                if (!graph.equalLabeling(sameGraphReloaded)) {
+                    System.out.println("Warning! Drawn graph and input graph differ.");
+                }
+                else {
+                    System.out.println("Checked: drawn graph contains the same objects as the input graph");
+                }
+            }
+            System.out.println();
+            System.out.println();
         }
-
-        System.out.println("Read graph " + SOURCE_PATH);
-        System.out.println();
-
-        SugiyamaLayouter sugy = new SugiyamaLayouter(graph);
-
-        sugy.construct();
-        sugy.assignDirections(DirectionMethod.FORCE, 1);
-        sugy.assignLayers();
-        sugy.createDummyNodes();
-        sugy.crossingMinimization(CrossingMinimizationMethod.PORTS, 1);
-        sugy.nodePositioning();
-        sugy.edgeRouting();
-        sugy.prepareDrawing();
-
-        System.out.println("Computed drawing with " + CrossingsCounting.countNumberOfCrossings(graph) + " crossings " +
-                "and " + BendsCounting.countNumberOfBends(graph) + " bends.");
-        System.out.println();
-
-        sugy.drawResult(TARGET_PATH);
-
-        System.out.println("Created svg " + TARGET_PATH);
     }
 }

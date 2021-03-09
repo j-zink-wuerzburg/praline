@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import de.uniwue.informatik.praline.datastructure.ReferenceObject;
+import de.uniwue.informatik.praline.datastructure.labels.LabeledObject;
+import de.uniwue.informatik.praline.datastructure.utils.EqualLabeling;
 
 import java.util.*;
 
@@ -143,6 +145,13 @@ public class PortGroup implements PortComposition, ReferenceObject {
     }
 
     public void addPortComposition(int position, PortComposition pc) {
+        //remove it as direct child of a port group of a vertex if it was there before
+        if (pc.getPortGroup() != null) {
+            pc.getPortGroup().removePortComposition(pc);
+        }
+        else if (pc.getVertex() != null) {
+            pc.getVertex().removePortComposition(pc);
+        }
         portCompositions.add(position, pc);
         setVertexRecursivelyToAllPortCompositions(pc, this.getVertex());
         pc.setPortGroup(this);
@@ -195,5 +204,18 @@ public class PortGroup implements PortComposition, ReferenceObject {
             return "(" + contained.toString() + ")";
         }
         return "{" + contained.toString() + "}";
+    }
+
+    /*==========
+     * equalLabeling
+     *==========*/
+
+    @Override
+    public boolean equalLabeling(PortComposition o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PortGroup portGroup = (PortGroup) o;
+        return  ordered == portGroup.ordered && EqualLabeling.equalLabelingLists(new ArrayList<>(portCompositions),
+                new ArrayList<>(portGroup.portCompositions)) && Objects.equals(reference, portGroup.reference);
     }
 }

@@ -3,6 +3,7 @@ package de.uniwue.informatik.praline.datastructure.paths;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import de.uniwue.informatik.praline.datastructure.styles.PathStyle;
 
 import java.awt.geom.Line2D;
 import java.awt.geom.Point2D;
@@ -20,7 +21,7 @@ import static de.uniwue.informatik.praline.datastructure.utils.GraphUtils.newArr
  * or orthogonal paths, i. e. only horizontal and vertical segments, if the choice of points is done accordingly
  * (alternatingly changing only the x- or y- coordinate between each two consecutive points).
  */
-@JsonIgnoreProperties({ "terminalAndBendPoints" })
+@JsonIgnoreProperties({ "terminalAndBendPoints", "terminalPoints", "segments" })
 public class PolygonalPath extends Path {
 
     /*==========
@@ -37,24 +38,16 @@ public class PolygonalPath extends Path {
      *==========*/
 
     public PolygonalPath() {
-        this(null, null, null, Path.UNSPECIFIED_THICKNESS);
-    }
-
-    public PolygonalPath(double thickness) {
-        this(null, null, null, thickness);
+        this(null, null, null, null);
     }
 
     public PolygonalPath(Point2D.Double startPoint, Point2D.Double endPoint, List<Point2D.Double> bendPoints) {
-        this(startPoint, endPoint, bendPoints, UNSPECIFIED_THICKNESS);
+        this(startPoint, endPoint, bendPoints, null);
     }
 
     public PolygonalPath(List<Point2D.Double> terminalAndBendPoints) {
-        this(terminalAndBendPoints, Path.UNSPECIFIED_THICKNESS);
-    }
-
-    public PolygonalPath(List<Point2D.Double> terminalAndBendPoints, double thickness) {
         this(terminalAndBendPoints.get(0), terminalAndBendPoints.get(terminalAndBendPoints.size() - 1),
-                newListWithoutFirstAndLast(terminalAndBendPoints), thickness);
+                newListWithoutFirstAndLast(terminalAndBendPoints), null);
     }
 
     @JsonCreator
@@ -62,12 +55,32 @@ public class PolygonalPath extends Path {
             @JsonProperty("startPoint") final Point2D.Double startPoint,
             @JsonProperty("endPoint") final Point2D.Double endPoint,
             @JsonProperty("bendPoints") final List<Point2D.Double> bendPoints,
-            @JsonProperty("thickness") final double thickness
+            @JsonProperty("pathStyle") final PathStyle pathStyle
     ) {
-        super(thickness);
+        super(pathStyle);
         this.startPoint = startPoint;
         this.endPoint = endPoint;
         this.bendPoints = newArrayListNullSafe(bendPoints);
+    }
+
+    /*==========
+     * Modifiers
+     *==========*/
+
+    public void reverse() {
+        Point2D.Double swap = startPoint;
+        startPoint = endPoint;
+        endPoint = swap;
+        Collections.reverse(bendPoints);
+    }
+
+    @Override
+    public void translate(double xOffset, double yOffset) {
+        translate(startPoint, xOffset, yOffset);
+        for (Point2D.Double bendPoint : bendPoints) {
+            translate(bendPoint, xOffset, yOffset);
+        }
+        translate(endPoint, xOffset, yOffset);
     }
 
 
@@ -117,6 +130,15 @@ public class PolygonalPath extends Path {
         return Collections.unmodifiableList(allPoints);
     }
 
+    /**
+     *
+     * @return
+     *      concatenation of {@link PolygonalPath#getStartPoint()} + {@link PolygonalPath#getEndPoint()}.
+     */
+    public List<Point2D.Double> getTerminalPoints() {
+        return Collections.unmodifiableList(Arrays.asList(getStartPoint(), getEndPoint()));
+    }
+
     public List<Line2D.Double> getSegments() {
         List<Line2D.Double> allSegments = new ArrayList<>(bendPoints.size() + 1);
         Point2D.Double prevPoint = null;
@@ -141,6 +163,11 @@ public class PolygonalPath extends Path {
         return reducedList;
     }
 
+    private static void translate(Point2D.Double point, double xOffset, double yOffset) {
+        point.x += xOffset;
+        point.y += yOffset;
+    }
+
 
     /*==========
      * toString
@@ -153,5 +180,42 @@ public class PolygonalPath extends Path {
             sb.append("-").append(bendPoint.toString());
         }
         return sb.append("-").append(endPoint.toString()).toString();
+    }
+
+    /*==========
+     * clone & equals & hashCode
+     *==========*/
+
+    @Override
+    protected PolygonalPath clone() {
+        ArrayList<Point2D.Double> copiedBendPoints = new ArrayList<>(bendPoints.size());
+        for (Point2D.Double bendPoint : bendPoints) {
+            copiedBendPoints.add((Point2D.Double) bendPoint.clone());
+        }
+        return new PolygonalPath((Point2D.Double) startPoint.clone(), (Point2D.Double) endPoint.clone(),
+                copiedBendPoints);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PolygonalPath that = (PolygonalPath) o;
+        // we also check if a  reversed version equals this -> than we return also true
+        PolygonalPath thatReversed = that.clone();
+        thatReversed.reverse();
+        return this.equalsWithoutReversing(that) || this.equalsWithoutReversing(thatReversed);
+    }
+
+    private boolean equalsWithoutReversing(PolygonalPath other) {
+        if (this == other) return true;
+        if (other == null) return false;
+        return Objects.equals(startPoint, other.startPoint) && Objects.equals(endPoint, other.endPoint) &&
+                Objects.equals(bendPoints, other.bendPoints);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(startPoint, endPoint, bendPoints);
     }
 }

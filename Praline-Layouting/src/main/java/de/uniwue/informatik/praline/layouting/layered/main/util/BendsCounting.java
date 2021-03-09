@@ -30,9 +30,13 @@ public class BendsCounting {
             //for the different paths, we do not count the end points at the ports
             startAndEndPointsOfPaths -= edge.getPorts().size();
             //for the remaining connection points of different paths we count 1,
-            //TODO: maybe this is to pessimistic: if two paths end in the same point, they contribute 1 or 0 bends
+            //TODO: maybe this is too pessimistic: if two paths end in the same point, they contribute 1 or 0 bends
             // instead of 2
             sum += startAndEndPointsOfPaths;
+            //TODO: counting for hyperedges is not yet ideal: currently we count for every vertical segment arriving at
+            // the horizontal central segment +1. It's not really clear if it makes sense to count this way. In some
+            // cases it feels like this is to pessimistic, in particular if there are two vertical segments arriving
+            // at the same point (one coming from above and one from below)
         }
         return sum;
     }

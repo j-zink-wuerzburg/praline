@@ -7,7 +7,8 @@ import de.uniwue.informatik.praline.datastructure.utils.Serialization;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
-import de.uniwue.informatik.praline.layouting.layered.kieleraccess.KielerDrawer;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.layerassignment.LayerAssignmentMethod;
+import de.uniwue.informatik.praline.layouting.layered.kieleraccess.KielerLayouter;
 import de.uniwue.informatik.praline.layouting.layered.main.util.BendsCounting;
 import de.uniwue.informatik.praline.layouting.layered.main.util.CrossingsCounting;
 
@@ -28,9 +29,7 @@ public class AllTests {
     public static final String PATH_DATA_SET = "Praline-Layouting/data";
     public static final String[] DATA_SETS =
             {
-//                    "generated_2020-06-04_18-39-49",
-//                    "generated_2020-08-20_04-42-39",
-                    "lc-praline-package-2020-05-18"
+                    "generated_2020-08-20_04-42-39"
             };
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
     private static final String PATH_RESULTS =
@@ -41,13 +40,13 @@ public class AllTests {
 
     private static final Test[] CURRENT_TESTS =
             {
-                    Test.DIRECTION_ASSIGNMENT_PHASE,
+//                    Test.DIRECTION_ASSIGNMENT_PHASE,
                     Test.CROSSING_MINIMIZATION_PHASE
             };
 
-    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 5; //10; //50 //200
+    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 1; //5; //10; //50 //200
 
-    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 10; //5; //50
+    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 1; //3; //10; //5; //50
 
 
 
@@ -76,8 +75,8 @@ public class AllTests {
                     return Arrays.asList(namesArray(DirectionMethod.values()));
                 case CROSSING_MINIMIZATION_PHASE:
                     ArrayList<String> methods = new ArrayList<>();
-                    String[] movePortsToTurningDummies = {"-noMove"}; //{"-noMove", "-move"};
-                    String[] placeTurningDummiesCloseToVertex = {"-noPlaceTurnings"}; //{"-noPlaceTurnings", "-placeTurnings"};
+                    String[] movePortsToTurningDummies = {"-noMove", "-move"}; //{"-noMove"};
+                    String[] placeTurningDummiesCloseToVertex = {"-noPlaceTurnings", "-placeTurnings"}; //{"-noPlaceTurnings"};
                     for (CrossingMinimizationMethod cmm : CrossingMinimizationMethod.values()) {
                         for (String m : movePortsToTurningDummies) {
                             for (String ptd : placeTurningDummiesCloseToVertex) {
@@ -144,7 +143,6 @@ public class AllTests {
 
         List<Callable<String>> tasks = new ArrayList<>();
         ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUMBER_OF_PARALLEL_THREADS);
-        int jj = 0;
         progressCounter = 0;
         totalSteps = 0;
         for (String pathsDataSet : DATA_SETS) {
@@ -165,10 +163,9 @@ public class AllTests {
                 totalSteps += files.size() * noi * Test.getMethods(currentTest).size();
 
                 for (File file : files) {
-                    int k = jj;
                     tasks.add(() -> {
                         try {
-                            parallelio(file, noi, k, currentTest, targetPath);
+                            parallelio(file, noi, currentTest, targetPath);
                         }
                         catch (Exception e) {
                             System.out.println("Exception has been thrown!");
@@ -176,7 +173,6 @@ public class AllTests {
                         }
                         return null;
                     });
-                    jj++;
                 }
             }
         }
@@ -192,7 +188,7 @@ public class AllTests {
         return ++progressCounter;
     }
 
-    public static void parallelio(File file, int noi, int k, Test currentTest, String targetPath) throws IOException {
+    public static void parallelio(File file, int noi, Test currentTest, String targetPath) throws IOException {
 
         Graph graph = null;
 
@@ -259,38 +255,40 @@ public class AllTests {
 //                System.out.println("da: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
 
                 if (method.equals("kieler")) {
-                    KielerDrawer kielerDrawer = new KielerDrawer(sugiy);
+                    KielerLayouter kielerLayouter = new KielerLayouter(sugiy); //TODO: assign layers before to have
+                    // same situation for assigning the ports to sides -- currently NETWORK_SIMPLEX is chosen in
+                    // KielerLayouter as a default (hard coded; maybe change this, too)
+
 //                    System.out.println("kieler_init: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
-                    kielerDrawer.draw();
+                    kielerLayouter.computeLayout();
                     //save number of dummy nodes
                     criterion2method2values.get(Criterion.NUMBER_OF_DUMMY_VERTICES).get(method).add(0); //for kieler
                     // we don't know and we also don't care so much about dummy vertices
-                    //save number of crossings
-                    criterion2method2values.get(Criterion.NUMBER_OF_CROSSINGS).get(method).add(kielerDrawer.getNumberOfCrossings());
 
 //                    System.out.println("kieler_draw: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
                 }
                 else {
-                    sugiy.assignLayers();
+                    sugiy.assignLayers(LayerAssignmentMethod.FD_POSITION); //TODO: move as option to top of the class
 
 //                    System.out.println("al: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
 
-                    sugiy.createDummyNodes();
+//                    sugiy.createDummyNodes();
 
 //                    System.out.println("cd: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
 
-                    //save number of dummy nodes
-                    criterion2method2values.get(Criterion.NUMBER_OF_DUMMY_VERTICES).get(method).add(sugiy.getNumberOfDummys());
 
                     if (currentTest.equals(Test.CROSSING_MINIMIZATION_PHASE)) {
-                        sugiy.crossingMinimization(CrossingMinimizationMethod.string2Enum(method),
+                        sugiy.createDummyNodesAndDoCrossingMinimization(CrossingMinimizationMethod.string2Enum(method),
                                 method.contains("-move"), method.contains("-placeTurnings"),
                                 NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
                     }
                     else {
-                        sugiy.crossingMinimization(CrossingMinimizationMethod.PORTS,
+                        sugiy.createDummyNodesAndDoCrossingMinimization(CrossingMinimizationMethod.PORTS,
                                 NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
                     }
+
+                    //save number of dummy nodes
+                    criterion2method2values.get(Criterion.NUMBER_OF_DUMMY_VERTICES).get(method).add(sugiy.getNumberOfDummys());
 
 //                    System.out.println("cm: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
 
@@ -304,11 +302,13 @@ public class AllTests {
 
                     sugiy.prepareDrawing();
 
-                    //save number of crossings
-                    criterion2method2values.get(Criterion.NUMBER_OF_CROSSINGS).get(method).add(CrossingsCounting.countNumberOfCrossings(graph));
+//                    System.out.println("er: " + ((double) (mxBean.getThreadCpuTime(Thread.currentThread().getId()) - startTime) / 1000000000.0));
                 }
 
                 long endTime = mxBean.getThreadCpuTime(Thread.currentThread().getId());
+
+                //save number of crossings
+                criterion2method2values.get(Criterion.NUMBER_OF_CROSSINGS).get(method).add(CrossingsCounting.countNumberOfCrossings(graph));
 
                 //save cpu time in ms (we divide by a million to have milliseconds instead of nanoseconds)
                 criterion2method2values.get(Criterion.CPU_TIME).get(method).add((int) ((endTime - startTime) / 1000000l));

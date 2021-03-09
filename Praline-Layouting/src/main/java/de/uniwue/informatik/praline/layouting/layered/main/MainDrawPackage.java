@@ -5,6 +5,7 @@ import de.uniwue.informatik.praline.datastructure.utils.Serialization;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
+import de.uniwue.informatik.praline.layouting.layered.main.util.CrossingsCounting;
 
 import java.io.File;
 import java.io.IOException;
@@ -20,26 +21,26 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class MainDrawPackage {
 
     public static final String PATH_DATA_SET =
-//            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
-//            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
-            "Praline-Layouting/data/lc-praline-package-2020-05-18";
-//            "Praline-Layouting/data/praline-package-2020-05-18";
-//            "Praline-Layouting/data/5plansOriginalPseudo";
+            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
 
 
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
     public static final String PATH_RESULTS =
             "Praline-Layouting/results/all-svgs-" + DATE_FORMAT.format(new Date());
 
+    private static final boolean CHECK_COMPLETENESS_OF_GRAPH = true;
+
     private static final DirectionMethod DIRECTION_METHOD = DirectionMethod.FORCE;
 
     private static final CrossingMinimizationMethod CROSSING_MINIMIZATION_METHOD = CrossingMinimizationMethod.PORTS;
 
-    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 5;
+    private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 1; //5;
 
-    private static final int NUMBER_OF_FORCE_DIRECTED_ITERATIONS = 10;
+    private static final int NUMBER_OF_FORCE_DIRECTED_ITERATIONS = 1; //10;
 
-    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 3;
+    private static final int NUMBER_OF_CROSSING_REDUCTION_ITERATIONS = 1; //3;
+
+    private static final int NUMBER_OF_PARALLEL_THREADS = 8;
 
 
     private static int progressCounter = 0;
@@ -56,7 +57,8 @@ public class MainDrawPackage {
         File[] directoryListing = dir.listFiles();
         if (directoryListing != null) {
             for (File child : directoryListing) {
-                if (child.getName().endsWith(".json")) {
+                if (child.getName().endsWith(".json") &&
+                        (!PATH_DATA_SET.endsWith("readable-2020-09-04") || child.getName().endsWith("-praline.json"))) {
                     files.add(child);
                 }
             }
@@ -65,7 +67,7 @@ public class MainDrawPackage {
         new File(PATH_RESULTS).mkdirs();
 
         List<Callable<String>> tasks = new ArrayList<>();
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(16);
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(NUMBER_OF_PARALLEL_THREADS);
         int jj = 0;
         progressCounter = 0;
         totalSteps = files.size();
@@ -99,17 +101,10 @@ public class MainDrawPackage {
 
             SugiyamaLayouter sugy = new SugiyamaLayouter(graph);
 
-            sugy.construct();
-            sugy.assignDirections(DIRECTION_METHOD, NUMBER_OF_FORCE_DIRECTED_ITERATIONS);
-            sugy.assignLayers();
-            sugy.createDummyNodes();
-            sugy.crossingMinimization(CROSSING_MINIMIZATION_METHOD, NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
+//            sugy.computeLayout(DIRECTION_METHOD, NUMBER_OF_FORCE_DIRECTED_ITERATIONS, CROSSING_MINIMIZATION_METHOD,
+//                    NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
 
-            int numberOfCrossings = sugy.getNumberOfCrossings();
-
-            sugy.nodePositioning();
-            sugy.edgeRouting();
-            sugy.prepareDrawing();
+            int numberOfCrossings = CrossingsCounting.countNumberOfCrossings(sugy.getGraph());
 
             if (bestNumberOfCrossings > numberOfCrossings) {
                 bestNumberOfCrossings = numberOfCrossings;
@@ -117,6 +112,17 @@ public class MainDrawPackage {
             }
         }
 
+        if (CHECK_COMPLETENESS_OF_GRAPH) {
+            Graph sameGraphReloaded = null;
+            try {
+                sameGraphReloaded = Serialization.read(file, Graph.class);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            if (!bestRunSugy.getGraph().equalLabeling(sameGraphReloaded)) {
+                System.out.println("Warning! Drawn graph and input graph differ.");
+            }
+        }
 
         String filename = file.getName();
         filename = filename.substring(0, filename.length() - 5); //remove ".json"

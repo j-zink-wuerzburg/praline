@@ -5,6 +5,7 @@ import de.uniwue.informatik.praline.datastructure.ReferenceObject;
 import de.uniwue.informatik.praline.datastructure.labels.Label;
 import de.uniwue.informatik.praline.datastructure.labels.LabelManager;
 import de.uniwue.informatik.praline.datastructure.labels.LabeledObject;
+import de.uniwue.informatik.praline.datastructure.utils.EqualLabeling;
 
 import java.util.*;
 
@@ -22,7 +23,7 @@ import static de.uniwue.informatik.praline.datastructure.utils.GraphUtils.newArr
  * An {@link EdgeBundle} may have labels, but just for the whole thing -- for placing {@link Label}s close to
  * {@link Port}s use the labeling of its contained {@link Edge}s.
  */
-@JsonIgnoreProperties({ "allRecursivelyContainedEdges", "allRecursivelyContainedEdgeBundles" })
+@JsonIgnoreProperties({ "allRecursivelyContainedEdges", "allRecursivelyContainedEdgeBundles", "edgeBundle" })
 @JsonIdentityInfo(generator = ObjectIdGenerators.IntSequenceGenerator.class, property = "@id")
 public class EdgeBundle implements LabeledObject, ReferenceObject {
 
@@ -32,6 +33,7 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
 
     private final List<Edge> containedEdges;
     private final List<EdgeBundle> containedEdgeBundles;
+    private EdgeBundle edgeBundle;
     private final LabelManager labelManager;
     private String reference;
 
@@ -73,6 +75,9 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
             e.setEdgeBundle(this);
         }
         this.containedEdgeBundles = newArrayListNullSafe(containedEdgeBundles);
+        for (EdgeBundle eb : this.containedEdgeBundles) {
+            eb.setEdgeBundle(this);
+        }
         this.labelManager = new LabelManager(this, labels, mainlabel);
     }
 
@@ -134,6 +139,14 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
         return allEdgeBundles;
     }
 
+    public EdgeBundle getEdgeBundle() {
+        return edgeBundle;
+    }
+
+    protected void setEdgeBundle(EdgeBundle edgeBundle) {
+        this.edgeBundle = edgeBundle;
+    }
+
     @Override
     public LabelManager getLabelManager() {
         return labelManager;
@@ -156,9 +169,21 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
      * Modifiers
      *==========*/
 
-    public void addEdge(Edge e) {
+    public boolean addEdge(Edge e) {
+        if (this.getAllRecursivelyContainedEdges().contains(e)) {
+            return false;
+        }
         containedEdges.add(e);
         e.setEdgeBundle(this);
+        return true;
+    }
+
+    public boolean addEdges(Collection<Edge> edges) {
+        boolean success = true;
+        for (Edge e : edges) {
+            success &= addEdge(e);
+        }
+        return success;
     }
 
     /**
@@ -184,8 +209,13 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
         return success;
     }
 
-    public void addEdgeBundle(EdgeBundle eb) {
+    public boolean addEdgeBundle(EdgeBundle eb) {
+        if (this.getAllRecursivelyContainedEdgeBundles().contains(eb)) {
+            return false;
+        }
         containedEdgeBundles.add(eb);
+        eb.setEdgeBundle(this);
+        return true;
     }
 
     /**
@@ -199,6 +229,9 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
      */
     public boolean removeEdgeBundle(EdgeBundle eb) {
         boolean success = containedEdgeBundles.remove(eb);
+        if (success) {
+            eb.setEdgeBundle(null);
+        }
 
         //recursive call to edge bundles inside this edge bundle
         for (EdgeBundle containedEdgeBundle : containedEdgeBundles) {
@@ -218,4 +251,18 @@ public class EdgeBundle implements LabeledObject, ReferenceObject {
         return labelManager.getStringForLabeledObject();
     }
 
+    /*==========
+     * equalLabeling
+     *==========*/
+
+    @Override
+    public boolean equalLabeling(LabeledObject o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        EdgeBundle that = (EdgeBundle) o;
+        return EqualLabeling.equalLabelingLists(new ArrayList<>(containedEdges),
+                new ArrayList<>(that.containedEdges)) && EqualLabeling.equalLabelingLists(
+                        new ArrayList<>(containedEdgeBundles), new ArrayList<>(that.containedEdgeBundles)) &&
+                labelManager.equalLabeling(that.labelManager) && Objects.equals(reference, that.reference);
+    }
 }
