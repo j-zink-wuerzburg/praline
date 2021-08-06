@@ -22,7 +22,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class MainDrawKielerPackage {
 
     public static final String PATH_DATA_SET =
-            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
+//            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
+//            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
+//            "Praline-Layouting/data/lc-praline-package-2020-05-18";
+//            "Praline-Layouting/data/praline-package-2020-05-18";
+            "Praline-Layouting/data/praline-readable-2020-09-04";
+//            "Praline-Layouting/data/5plansOriginalPseudo";
 
 
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");

@@ -8,12 +8,12 @@ import de.uniwue.informatik.praline.io.output.jsforcegraph.model.JsForceGraph;
 import de.uniwue.informatik.praline.io.output.jsforcegraph.model.Link;
 import de.uniwue.informatik.praline.io.output.jsforcegraph.model.Node;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public class JsForceGraphConverter
 {
-    private final Map<Vertex, Node> vertexMap = new HashMap<>();
+    private final Map<Vertex, Node> vertexMap = new LinkedHashMap<>();
     private int jsIdCounter = 1;
 
     public JsForceGraphConverter()
@@ -27,9 +27,17 @@ public class JsForceGraphConverter
         for (Vertex vertex : graph.getVertices())
         {
             Node node = new Node();
-            node.setId(Integer.toString(this.jsIdCounter));
-            this.jsIdCounter++;
+            if (vertex.getReference() != null && !vertex.getReference().isBlank())
+            {
+                node.setId(vertex.getReference());
+            }
+            else
+            {
+                node.setId(Integer.toString(this.jsIdCounter));
+                this.jsIdCounter++;
+            }
             node.setName(vertex.getLabelManager().getMainLabel().toString());
+            this.addVertexAttributes(vertex, node);
             jsForceGraph.getNodes().add(node);
             this.vertexMap.put(vertex, node);
         }
@@ -43,6 +51,7 @@ public class JsForceGraphConverter
                 link.setSource(this.getVertexNodeId(edge.getPorts().get(1)));
             }
             link.setName(edge.getLabelManager().getMainLabel().toString());
+            this.addEdgeAttributes(edge, link);
             jsForceGraph.getLinks().add(link);
         }
 
@@ -54,4 +63,14 @@ public class JsForceGraphConverter
         Vertex vertex = port.getVertex();
         return this.vertexMap.get(vertex).getId();
     }
+
+    // Possibility to extend exported data using inheritance
+    @SuppressWarnings("unused")
+    protected void addVertexAttributes( Vertex vertex, Node node)
+    { }
+
+    // Possibility to extend exported data using inheritance
+    @SuppressWarnings("unused")
+    protected void addEdgeAttributes(Edge edge, Link link)
+    { }
 }

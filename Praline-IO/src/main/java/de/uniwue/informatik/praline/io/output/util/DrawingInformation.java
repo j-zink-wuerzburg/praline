@@ -6,6 +6,7 @@ import de.uniwue.informatik.praline.datastructure.labels.Label;
 import de.uniwue.informatik.praline.datastructure.labels.TextLabel;
 
 import java.awt.*;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.Collection;
 
@@ -16,7 +17,7 @@ public class DrawingInformation {
     public final static double DEFAULT_BORDER_WIDTH = 2;
     public final static double DEFAULT_VERTEX_HEIGHT = 30; //24 //48;
     public final static double DEFAULT_VERTEX_MINIMUM_WIDTH = 12; //20;
-    public final static double DEFAULT_VERTEX_WIDTH_MAX_STRETCH_FACTOR = 12.0; //1.0; //Double.POSITIVE_INFINITY
+    public final static double DEFAULT_VERTEX_WIDTH_MAX_STRETCH_FACTOR = 12.0; //1.0; //Double.POSITIVE_INFINITY;
     private static final Color DEFAULT_VERTEX_COLOR = Color.lightGray; //null for transparent;
     public final static double DEFAULT_PORT_WIDTH = 8;
     public final static double DEFAULT_PORT_HEIGHT = 4;
@@ -47,7 +48,7 @@ public class DrawingInformation {
     private double borderWidth;
     private double vertexHeight; //TODO: as minimum height/flexible for diff. heights (multiple labels above each other)
     private double vertexMinimumWidth;
-    private double vertexWidthMaxStretchFactor; //for vertical stretch; 1 means (almost) no stretch, positive infinity
+    private double vertexWidthMaxStretchFactor; //for horizontal stretch; 1 means (almost) no stretch, positive infinity
     // means arbitrary stretch
     private Color vertexColor; //null for transparent
     private double portWidth;
@@ -123,9 +124,12 @@ public class DrawingInformation {
         double labelWidth = getMinLabelWidth(vertex.getLabelManager().getLabels());
         double labelWithBufferWidth = labelWidth + 2.0 * this.horizontalVertexLabelOffset;
 
-        double givenWidth = vertex.getShape() != null && vertex.getShape() instanceof Rectangle &&
-                ((de.uniwue.informatik.praline.datastructure.shapes.Rectangle) vertex.getShape()).getWidth() >= 0 ?
-                ((de.uniwue.informatik.praline.datastructure.shapes.Rectangle) vertex.getShape()).getWidth() :
+        double givenWidth =
+                // we don't use the pre-set width any more here because maybe we want to tighten the existing node.
+                // Then we cannot depend on the currently set width
+//                vertex.getShape() != null && vertex.getShape() instanceof Rectangle2D &&
+//                ((Rectangle2D) vertex.getShape()).getWidth() >= 0 ?
+//                ((Rectangle2D) vertex.getShape()).getWidth() :
                 this.vertexMinimumWidth;
 
         return Math.max(labelWithBufferWidth, givenWidth);
@@ -157,15 +161,18 @@ public class DrawingInformation {
         return minWidth;
     }
 
-    public double computeVertexHeight(Vertex vertex) {
+    public double computeMinVertexHeight(Vertex vertex) {
         double labelHeight = getMinLabelHeight(vertex.getLabelManager().getLabels());
 
-        double givenWidth = vertex.getShape() != null && vertex.getShape() instanceof Rectangle &&
-                ((de.uniwue.informatik.praline.datastructure.shapes.Rectangle) vertex.getShape()).getHeight() >= 0 ?
-                ((de.uniwue.informatik.praline.datastructure.shapes.Rectangle) vertex.getShape()).getHeight() :
-                getVertexHeight();
+        double givenHeight =
+                // we don't use the pre-set height any more here because maybe we want to tighten the existing node.
+                // Then we cannot depend on the currently set height
+//                vertex.getShape() != null && vertex.getShape() instanceof Rectangle2D &&
+//                ((Rectangle2D) vertex.getShape()).getHeight() >= 0 ?
+//                ((Rectangle2D) vertex.getShape()).getHeight() :
+                this.vertexHeight;
 
-        return Math.max(labelHeight, givenWidth);
+        return Math.max(labelHeight, givenHeight);
     }
 
     private double getMinLabelHeight(Collection<Label> labels) {
@@ -173,8 +180,10 @@ public class DrawingInformation {
         for (Label label : labels) {
             if (label instanceof TextLabel) {
                 g2d.setFont(FontManager.fontOf((TextLabel) label));
-                minHeight = Math.max(minHeight, g2d.getFontMetrics().getStringBounds(
-                        ((TextLabel) label).getLayoutText(), g2d).getHeight());
+                if (((TextLabel) label).getLayoutText() != null) {
+                    minHeight = Math.max(minHeight,
+                            g2d.getFontMetrics().getStringBounds(((TextLabel) label).getLayoutText(), g2d).getHeight());
+                }
             }
         }
         return minHeight;

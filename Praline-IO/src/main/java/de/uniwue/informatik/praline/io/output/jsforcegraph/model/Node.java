@@ -4,6 +4,8 @@ package de.uniwue.informatik.praline.io.output.jsforcegraph.model;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
+import java.util.Map;
+
 public class Node {
 
     @SerializedName("id")
@@ -15,6 +17,12 @@ public class Node {
     @SerializedName("val")
     @Expose
     private Integer val;
+    @SerializedName("tags")
+    @Expose
+    private Map<String, String> tags;
+    @SerializedName("state")
+    @Expose
+    private Map<String, String> state;
 
     public String getId() {
         return this.id;
@@ -40,4 +48,23 @@ public class Node {
         this.val = val;
     }
 
+    public Map<String, String> getTags()
+    {
+        return tags;
+    }
+
+    public void setTags(Map<String, String> tags)
+    {
+        this.tags = tags;
+    }
+
+    public Map<String, String> getState()
+    {
+        return state;
+    }
+
+    public void setState(Map<String, String> state)
+    {
+        this.state = state;
+    }
 }

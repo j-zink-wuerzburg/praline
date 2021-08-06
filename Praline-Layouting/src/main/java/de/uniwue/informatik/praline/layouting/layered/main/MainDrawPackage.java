@@ -5,6 +5,8 @@ import de.uniwue.informatik.praline.datastructure.utils.Serialization;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.SugiyamaLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.layerassignment.LayerAssignmentMethod;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.nodeplacement.AlignmentParameters;
 import de.uniwue.informatik.praline.layouting.layered.main.util.CrossingsCounting;
 
 import java.io.File;
@@ -21,7 +23,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class MainDrawPackage {
 
     public static final String PATH_DATA_SET =
-            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
+//            "Praline-Layouting/data/generated_2020-06-04_18-39-49";
+//            "Praline-Layouting/data/generated_2020-08-20_04-42-39";
+//            "Praline-Layouting/data/generated_2021-03-15_17-32-05";
+//            "Praline-Layouting/data/lc-praline-package-2020-05-18";
+//            "Praline-Layouting/data/praline-package-2020-05-18";
+//            "Praline-Layouting/data/praline-readable-2020-09-04";
+            "Praline-Layouting/data/denkbares_08_06_2021/praline";
+//            "Praline-Layouting/data/5plansOriginalPseudo";
 
 
     private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss");
@@ -32,7 +41,13 @@ public class MainDrawPackage {
 
     private static final DirectionMethod DIRECTION_METHOD = DirectionMethod.FORCE;
 
+    private static final LayerAssignmentMethod LAYER_ASSIGNMENT_METHOD = LayerAssignmentMethod.NETWORK_SIMPLEX;
+
     private static final CrossingMinimizationMethod CROSSING_MINIMIZATION_METHOD = CrossingMinimizationMethod.PORTS;
+
+    private static final AlignmentParameters.Method ALIGNMENT_METHOD = AlignmentParameters.Method.FIRST_COMES;
+
+    private static final AlignmentParameters.Preference ALIGNMENT_PREFERENCE = AlignmentParameters.Preference.LONG_EDGE;
 
     private static final int NUMBER_OF_REPETITIONS_PER_GRAPH = 1; //5;
 
@@ -51,7 +66,7 @@ public class MainDrawPackage {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        List<File> files = new LinkedList<>();
+        List<File> files = new ArrayList<>();
 
         File dir = new File(PATH_DATA_SET);
         File[] directoryListing = dir.listFiles();
@@ -101,8 +116,8 @@ public class MainDrawPackage {
 
             SugiyamaLayouter sugy = new SugiyamaLayouter(graph);
 
-//            sugy.computeLayout(DIRECTION_METHOD, NUMBER_OF_FORCE_DIRECTED_ITERATIONS, CROSSING_MINIMIZATION_METHOD,
-//                    NUMBER_OF_CROSSING_REDUCTION_ITERATIONS);
+            sugy.computeLayout(DIRECTION_METHOD, LAYER_ASSIGNMENT_METHOD, NUMBER_OF_FORCE_DIRECTED_ITERATIONS,
+                    CROSSING_MINIMIZATION_METHOD, NUMBER_OF_CROSSING_REDUCTION_ITERATIONS, ALIGNMENT_METHOD, ALIGNMENT_PREFERENCE);
 
             int numberOfCrossings = CrossingsCounting.countNumberOfCrossings(sugy.getGraph());
 

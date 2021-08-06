@@ -11,22 +11,83 @@ import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class CsvDataExtraction {
 
     private static final String DATA_PATH =
             "Praline-Layouting/results/" +
-                    "2020-11-26_04-07-39";
+//                    "paper-all-tests-2020-06-10_06-18-04";
+//                    "paper-all-tests-2020-08-20_16-01-53";
+//                    "2020-11-26_04-07-39";
+//                    "2021-01-25_19-14-23"; //regular run
+//                    "2021-01-27_02-34-35"; //regular run (new: draw each component individually)
+//                    "2021-01-28_01-59-11"; //no back-moving of ports on wrong sides
+//                    "2021-01-28_02-24-56"; //no back-moving of ports on wrong sides and no re-unpacking of vertex groups
+//                    "2021-01-28_04-40-34"; //same as above + own port group for each wrong-assigned instead of 1 for all
+//                    "2021-01-28_16-46-40"; //with DummyNodeCreation.createTurningDummiesAndSelfLoopDummies2()
+//                    "2021-01-29_04-47-27"; //regular run with intermediate layers being removed in EdgeRouting
+//                    "2021-01-29_13-59-15"; //rr with preference of edges non-incident to turning dummies in NodePlacement
+//                    "2021-02-01_02-14-59"; //rr with extra layer sweep vertex sorting phase after fixing port positions
+//                    "2021-02-02_02-14-46"; //rr with changes in NodePlacement to prefer longer edges in making them straight
+//                    "2021-02-03_04-51-33"; //rr with final sorting + in CM with assignment acc. to other side ports
+//                    "2021-02-03_14-54-05"; //same as above but only 1 run (1 run is new default also for the next)
+//                    "2021-02-03_19-32-04"; //rr with final sorting + in CM with keeping nodes w/o edges at curr pos [CURRENT BEST]
+//                    "2021-02-04_00-16-18"; //same as before but with computing pseudo barycenters from curr pos for nodes w/o edges
+//                    "2021-02-04_00-45-10"; //same as 2 before but w/o final sorting
+//                    "2021-02-04_01-06-35"; //same as 2 before but w/o final sorting
+//                    "2021-02-04_01-30-09"; //same as 4 before but with also ignoring nodes with multiple port groups in port sorting
+//                    "2021-02-04_02-27-04"; //same as 4 before but with also ignoring nodes with multiple port groups in port sorting
+//                    "2021-02-04_04-23-07"; //same as 2021-02-03_19-32-04, but dummy turning points are weighted 2:1 towards their nodes
+//                    "2021-02-05_18-44-21"; //should be the same as 2021-02-03_19-32-04 (changed only code style in NodePlacement)
+//                    "2021-02-05_19-06-26"; //same as above
+//                    "2021-02-05_19-49-53"; //same as above
+//                    "2021-02-08_17-53-15"; //NodePlacement without maps
+//                    "2021-02-08_18-55-28"; //in NodePlacement average of 2 median x-coordinates (instead of all 4 x-coordinates)
+//                    "2021-02-09_20-27-21"; //rr with smaller vertices: max stretch = 4.0
+//                    "2021-02-09_23-38-16"; //same as before but unbounded stretch
+//                    "2021-02-10_00-16-05"; //same as 2 before but gaps btw. real ports and bounding ports are not closed
+//                    "2021-02-10_00-49-22"; //rr with smaller vertices: max stretch = 8.0
+//                    "2021-02-19_10-24-13"; //rr with individual-size ports & smaller dummy vertices in NodePlacement
+//                    "2021-02-20_02-51-39"; //separating pairs in NodePlacement only at non-dummy nodes
+//                    "2021-03-02_17-45-56"; //NodePlacement only top-left, variable width padding ports
+//                    "2021-03-02_17-46-51"; //NodePlacement only top-left, unit width padding ports
+//                    "2021-03-03_03-23-24"; //rr with NodePlacement back to grid-like arrangement + unit width padding ports
+//                    "2021-03-03_04-24-45"; //same as before + in NodePlacement use flags for first ports of nodes
+//                    "2021-03-04_00-52-49"; //same as before + allow broader gaps for the node side having fewer ports
+//                    "2021-03-04_01-45-45"; //rr (without broader gaps for the node side having fewer ports)
+//                    "2021-03-05_04-44-05"; //(slightly incomoplete run) force-directed layer assignment (kieler fd)
+//                    "2021-03-05_10-24-03"; //(slightly incomoplete run) force-directed layer assignment (kieler ns)
+//                    "2021-03-05_19-14-46"; //(comoplete run) force-directed layer assignment (kieler ns)
+//                    "2021-03-10_03-49-45"; //rr (all ns)
+//                    "2021-03-11_20-27-30"; //rr with new network simplex
+//                    "2021-03-12_00-32-29"; //rr with new network simplex and sorting layers acc to fd layout
+//                    "2021-03-12_01-35-29"; //rr same as before but with node balancing in network simplex
+//                    "2021-03-12_03-30-44"; //rr force-directed layer assignment (kieler ns)
+//                    "2021-03-19_02-20-08"; //rr maximum independent set for determining alignments in node placement
+//                    "2021-03-19_02-47-52"; //rr same as before + arbitrary node width
+//                    "2021-03-19_03-04-21"; //rr with arbitrary node width
+//                    "2021-03-19_17-05-45"; //rr same as 3 before, but as weighted is with edge weights by edge length
+//                    "2021-08-02_11-01-23"; //rr + removing the current values map from crossing reduction
+//                    "2021-08-04_23-06-45"; //trying to avoid more maps in crossing reduction
+//                    "2021-08-05_14-52-31"; //rr + trying to avoid more maps in crossing reduction
+                    "2021-08-05_19-03-14"; //first test run for journal paper, 1 execution per graph
+
 
     private static final String[] DATA_DIRS =
             {
-//                    "DA_generated_2020-08-20_04-42-39",
+//                    "DA_lc-praline-package-2020-05-18",
+                    "DA_praline-package-2020-05-18",
+                    "DA_generated_2020-08-20_04-42-39",
+//                    "CM_lc-praline-package-2020-05-18",
+                    "CM_praline-package-2020-05-18",
                     "CM_generated_2020-08-20_04-42-39"
+//                    "CM_denkbares_08_06_2021/praline"
             };
 
 
-    private static final boolean TABLE_CONTENT_OUTPUT = false; //otherwise better readable for humans
+    private static final boolean TABLE_CONTENT_OUTPUT = true; //otherwise better readable for humans
 
     private static final DecimalFormat OUTPUT_FORMAT_MEAN =
             new DecimalFormat("#.00", DecimalFormatSymbols.getInstance(Locale.US));
@@ -36,19 +97,21 @@ public class CsvDataExtraction {
             new DecimalFormat("#.0", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat OUTPUT_PERCENT_FORMAT =
             new DecimalFormat("#", DecimalFormatSymbols.getInstance(Locale.US));
-    private static final String PERCENT_SYMBOL = " \\%"; //"";
+    private static final String PERCENT_SYMBOL = ""; //" \\%";
     private static final String INSTEAD_OF_LEADING_ZERO = "~";
     private static final boolean IGNORE_SD = true;
 
     private static final String[] CONSIDER_FILES = {"noc", "nob", "nodn", "space", "time"};
 
-    private static final String[] SORT_ENTRIES_ORDER = {"fd", "bfs", "ran"};
+    private static final String[] SORT_ENTRIES_ORDER = {"fd", "bfs", "ran",
+            "ports", "mixed", "nodes", "pseudoBCs", "otherSide", "relPos", "kieler"};
 
     //set to an unkonwn value or null to have relative to the best
-    private static final String ENTRIES_RELATIVE_TO =
-//            "ran";
-            "kieler";
-//            null;
+    private static final List<String> ENTRIES_RELATIVE_TO = Arrays.asList(
+            "ran",
+            "ran-ns",
+            "kieler"
+    );
 
     private static final Map<String, String> KNOWN_NAMES = new LinkedHashMap<>() {
         {
@@ -57,15 +120,35 @@ public class CsvDataExtraction {
             put("nodn", "\\ndv");
             put("ratio", "w:h");
             put("#vtcs", "vtcs");
-//            put("ports-noMove-noPlaceTurnings", "ports");
-//            put("mixed-noMove-noPlaceTurnings", "mixed");
-//            put("nodes-noMove-noPlaceTurnings", "nodes");
-            put("ran", "rand");
+            put("ran", "\\rand");
+            put("fd-ns", "\\fd");
+            put("bfs-ns", "\\bfs");
+            put("ran-ns", "\\rand");
+            put("kieler", "\\kieler");
+//            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\ports + \\pseudobc");
+//            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\mixed + \\pseudobc");
+//            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\vertices + \\pseudobc");
+//            put("ports-noMove-placeTurnings-otherSide-firstComes-noPref", "\\ports + \\oppositebc");
+//            put("mixed-noMove-placeTurnings-otherSide-firstComes-noPref", "\\mixed + \\oppositebc");
+//            put("nodes-noMove-placeTurnings-otherSide-firstComes-noPref", "\\vertices + \\oppositebc");
+//            put("ports-noMove-placeTurnings-relPos-firstComes-noPref", "\\ports + \\relpos");
+//            put("mixed-noMove-placeTurnings-relPos-firstComes-noPref", "\\mixed + \\relpos");
+//            put("nodes-noMove-placeTurnings-relPos-firstComes-noPref", "\\vertices + \\relpos");
+            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "p + p");
+            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "m + p");
+            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "v + p");
+            put("ports-noMove-placeTurnings-otherSide-firstComes-noPref", "p + o");
+            put("mixed-noMove-placeTurnings-otherSide-firstComes-noPref", "m + o");
+            put("nodes-noMove-placeTurnings-otherSide-firstComes-noPref", "v + o");
+            put("ports-noMove-placeTurnings-relPos-firstComes-noPref", "p + r");
+            put("mixed-noMove-placeTurnings-relPos-firstComes-noPref", "m + r");
+            put("nodes-noMove-placeTurnings-relPos-firstComes-noPref", "v + r");
         }
     };
 
     private static final List<String> IGNORE_FIELDS_CONTAINING_STRING =
-            Arrays.asList("#vtcs"); //, "-move", "-placeTurnings", "-area", "-ratio");
+            Arrays.asList("#vtcs", "-ons", "-fdp", "-move", "-noPlaceTurnings", "-mis", "-prefLongE", "-area",
+                    "-ratio");
 
     public static void main(String[] args) {
         for (String dataDir : DATA_DIRS) {
@@ -107,6 +190,7 @@ public class CsvDataExtraction {
 
 
             List<String> methods = new ArrayList<>(results.get(0).keySet());
+            sortMethods(methods);
 
             //special handling: space
             if (testCase.equals("space")) {
@@ -252,7 +336,7 @@ public class CsvDataExtraction {
             boolean hasReferenceRatio = false;
             for (String method : newMethods) {
                 Double entry = candidatesRatio.get(method);
-                if (method.equals(ENTRIES_RELATIVE_TO)) {
+                if (ENTRIES_RELATIVE_TO.contains(method)) {
                     referenceRatio = entry;
                     hasReferenceRatio = true;
                 }
@@ -300,7 +384,7 @@ public class CsvDataExtraction {
         boolean hasReferenceValue = false;
         for (String method : methods) {
             Integer entry = candidates.get(method);
-            if (method.equals(ENTRIES_RELATIVE_TO)) {
+            if (ENTRIES_RELATIVE_TO.contains(method)) {
                 referenceValue = entry;
                 hasReferenceValue = true;
             }
@@ -325,30 +409,38 @@ public class CsvDataExtraction {
     private static void sortMethods(List<String> methods) {
         for (int i = SORT_ENTRIES_ORDER.length - 1; i >= 0; i--) {
             //remove and append first
-            if (methods.contains(SORT_ENTRIES_ORDER[i])) {
-                methods.remove(SORT_ENTRIES_ORDER[i]);
-                methods.add(0, SORT_ENTRIES_ORDER[i]);
+            List<String> methodsReversed = new ArrayList<>(methods); //methods.stream().sorted(Comparator
+            // .reverseOrder())
+            // .collect
+            // (Collectors.toList());
+            Collections.reverse(methodsReversed);
+            for (String method : methodsReversed) {
+                if (method.contains(SORT_ENTRIES_ORDER[i])) {
+                    methods.remove(method);
+                    methods.add(0, method);
+                }
             }
         }
     }
 
     private static void tableHeadLineOutput(List<String> methods) {
-        System.out.print("\\multicolumn{1}{c|}{}");
+        System.out.print("\\multicolumn{1}{c}{}");
         String numberColumns = "" + (IGNORE_SD ? 2 : 3);
         String headLineSD = IGNORE_SD ? "" : " & sd";
         for (String method : methods) {
             System.out.print(" & \\multicolumn{" + numberColumns + "}{c}{" + string(method) + "}");
         }
         System.out.println(" \\\\");
-        System.out.println(" & mean" + headLineSD + " & best & mean" + headLineSD
-                + " & best & mean" + headLineSD + " & best \\\\");
+        for (String method : methods) {
+            System.out.print(" & $\\mu$" + headLineSD + " & $\\beta$");
+        }
+        System.out.println(" \\\\");
         System.out.println("\\hline");
     }
 
     private static void tableTextOutput(String testCase, List<String> methods,
                                         Map<String, NumberDistribution<Double>> method2relativeQuality,
                                         Map<String, NumberDistribution<Integer>> method2best) {
-        sortMethods(methods);
         System.out.print(string(testCase));
         //find best method to make it bold face
         int bestMethodIndex = -1;
@@ -384,7 +476,6 @@ public class CsvDataExtraction {
     private static void regularTextOutput(String testCase, int numberOfEvaluatedFiles, List<String> methods,
                                           Map<String, NumberDistribution<Double>> method2relativeQuality,
                                           Map<String, NumberDistribution<Integer>> method2best) {
-        sortMethods(methods);
         System.out.println();
         System.out.println("---" + testCase + "---");
         System.out.println("evaluated " + numberOfEvaluatedFiles + " files");
@@ -405,7 +496,6 @@ public class CsvDataExtraction {
 
     private static void regularTextOutputTime(List<String> methods,
                                               Map<String, NumberDistribution<Integer>> method2absoluteTime) {
-        sortMethods(methods);
         System.out.println();
         System.out.println("---analyzing absolute time---");
         System.out.println();
@@ -424,7 +514,7 @@ public class CsvDataExtraction {
     }
 
     private static String formatMean(double number, String method) {
-        String meanAsText = method.equals(ENTRIES_RELATIVE_TO) ?
+        String meanAsText = ENTRIES_RELATIVE_TO.contains(method) ?
                 OUTPUT_FORMAT_MEAN_RELATIVE_TO.format(number) : OUTPUT_FORMAT_MEAN.format(number);
         if (meanAsText.startsWith(".")) {
             meanAsText = INSTEAD_OF_LEADING_ZERO + meanAsText;

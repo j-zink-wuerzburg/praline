@@ -24,11 +24,10 @@ public class NodePlacement {
     private SortingOrder sortingOrder;
     private List<Double> heightOfLayers;
     private Vertex dummyVertex;
-    private double layerHeight;
     private Map<Vertex, Set<Port>> dummyPorts;
     private Map<Port, Vertex> dummyPort2unionNode;
     private List<Edge> dummyEdges;
-    private int portnumber;
+    private int portNumber;
     // spacing variable according to paper:
     private double delta;
     //new max port spacing within a vertex
@@ -46,7 +45,9 @@ public class NodePlacement {
      *      Map linking to all dummy ports that were inserted for padding the width of a vertex due to a (long) label.
      *      These ports are still in the data structure and should be removed later.
      */
-    public Map<Vertex, Set<Port>> placeNodes (boolean determineSideLengthsOfNodes) {
+    public Map<Vertex, Set<Port>> placeNodes (boolean determineSideLengthsOfNodes,
+                                              AlignmentParameters.Method alignmentMethod,
+                                              AlignmentParameters.Preference alignmentPreference) {
         initialize();
         // create lists of ports for layers
         initializeStructure();
@@ -61,7 +62,7 @@ public class NodePlacement {
             determineSideLengthsOfNodes();
         }
         //find alignments
-        List<LinkedList<PortValues[]>> alignments = findAlignments();
+        List<LinkedList<Pair<PortValues>>> alignments = findAlignments(alignmentMethod, alignmentPreference);
 
         for (int i = 0; i < 4; i++) {
             switch (i) {
@@ -111,7 +112,7 @@ public class NodePlacement {
         //set final x
         for (List<PortValues> portLayer : structure) {
             for (PortValues portValues : portLayer) {
-                //find 2 medians of the 4 entries and take their avarage
+                //find 2 medians of the 4 entries and take their average
                 List<Double> xValues = portValues.getXValues();
                 xValues.sort(Double::compareTo);
                 portValues.setX((xValues.get(1) + xValues.get(2)) / 2.0);
@@ -142,18 +143,18 @@ public class NodePlacement {
         dummyVertex = new Vertex();
         dummyVertex.getLabelManager().addLabel(new TextLabel("dummyVertex"));
         dummyVertex.getLabelManager().setMainLabel(dummyVertex.getLabelManager().getLabels().get(0));
-        portnumber = 0;
+        portNumber = 0;
     }
 
     public void initializeStructure() {
-        layerHeight = drawInfo.getVertexHeight();
         int layer = -1;
         for (List<Vertex> rankNodes : sortingOrder.getNodeOrder()) {
             ++layer;
 
             heightOfLayers.add(0.0);
             for (Vertex node : rankNodes) {
-                heightOfLayers.set(layer, Math.max(heightOfLayers.get(layer), sugy.isDummy(node) ? 0.0 : 1.0));
+                heightOfLayers.set(layer, Math.max(heightOfLayers.get(layer), sugy.isDummy(node) ? 0.0 :
+                        sugy.getMinHeightForNode(node)));
             }
             List<PortValues> rankBottomPorts = new ArrayList<>();
             List<PortValues> rankTopPorts = new ArrayList<>();
@@ -483,11 +484,13 @@ public class NodePlacement {
                     //find next indices + next node
                     boolean currentNodeChanged = false;
                     //first try to move to next "regular" vertex
-                    if (j + 1 < bottomLayer.size() && !bottomLayer.get(j + 1).getPort().getVertex().equals(dummyVertex)) {
+                    if (j + 1 < bottomLayer.size() &&
+                            !bottomLayer.get(j + 1).getPort().getVertex().equals(dummyVertex)) {
                         currentNode = bottomLayer.get(j + 1).getPort().getVertex();
                         currentNodeChanged = true;
                     }
-                    if (!currentNodeChanged && k + 1 < topLayer.size() && !topLayer.get(k + 1).getPort().getVertex().equals(dummyVertex)) {
+                    if (!currentNodeChanged && k + 1 < topLayer.size() &&
+                            !topLayer.get(k + 1).getPort().getVertex().equals(dummyVertex)) {
                         currentNode = topLayer.get(k + 1).getPort().getVertex();
                         currentNodeChanged = true;
                     }
@@ -510,48 +513,135 @@ public class NodePlacement {
         }
     }
 
-    /**
-     *
-     * @return
-     *      finds alignments
-     */
-    private List<LinkedList<PortValues[]>> findAlignments() {
-        //determine for all long edges, over how many dummy vertices they go, i.e., their length.
-        //later, longer edges will be preferred for making them straight compared to shorter edges
-        Map<Edge, Integer> lengthOfLongEdge = new LinkedHashMap<>();
-        determineLengthOfLongEdges(lengthOfLongEdge);
-
-        List<LinkedList<PortValues[]>> stacksOfAlignments = new ArrayList<>(structure.size() - 1);
-
-        for (int layer = 0; layer < (structure.size() - 1); layer++) {
-            LinkedList<PortValues[]> stack = new LinkedList<>(); //stack of edges that are made straight
-            //an entry of this stack is the 2 end ports of the corresponding edge, the first for the lower, the second
-            // for the upper port
-            for (PortValues port0 : structure.get(layer)) {
-                for (Edge edge : port0.getPort().getEdges()) {
-                    PortValues port1 = port2portValues.get(PortUtils.getOtherEndPoint(edge, port0.getPort()));
-                    if (port1.getLayer() == (layer + 1)) {
-                        PortValues[] stackEntry = {port0, port1};
-                        fillStackOfCrossingEdges(stack, stackEntry, new LinkedList<>(), lengthOfLongEdge);
-                    }
-                }
-            }
-            stacksOfAlignments.add(stack);
-        }
-        return stacksOfAlignments;
-    }
-
-    private void handleCrossings(List<LinkedList<PortValues[]>> stacksOfAlignments, boolean reverseOrder) {
+    private void handleCrossings(List<LinkedList<Pair<PortValues>>> stacksOfAlignments, boolean reverseOrder) {
         if (reverseOrder) {
             Collections.reverse(stacksOfAlignments);
         }
-        for (LinkedList<PortValues[]> stack : stacksOfAlignments) {
+        for (LinkedList<Pair<PortValues>> stack : stacksOfAlignments) {
             // initialize root and align according to Alg. 2 from paper
             verticalAlignment(stack, reverseOrder);
         }
         if (reverseOrder) {
             Collections.reverse(stacksOfAlignments);
         }
+    }
+
+    /**
+     *
+     * @return
+     *      finds alignments
+     * @param alignmentMethod
+     * @param alignmentPreference
+     */
+    private List<LinkedList<Pair<PortValues>>> findAlignments(AlignmentParameters.Method alignmentMethod,
+                                                              AlignmentParameters.Preference alignmentPreference) {
+//        //determine for all long edges, over how many dummy vertices they go, i.e., their length.
+//        //later, longer edges will be preferred for making them straight compared to shorter edges
+        Map<Edge, Integer> lengthOfLongEdge = new LinkedHashMap<>();
+        if (alignmentPreference == AlignmentParameters.Preference.LONG_EDGE) {
+            determineLengthOfLongEdges(lengthOfLongEdge);
+        }
+
+        List<LinkedList<Pair<PortValues>>> stacksOfAlignments = new ArrayList<>(structure.size() - 1);
+
+        for (int layer = 0; layer < (structure.size() - 1); layer++) {
+            LinkedList<Pair<PortValues>> layerAlignments = alignmentMethod == AlignmentParameters.Method.FIRST_COMES ?
+                    findLayerAlignmentsClassically(layer, lengthOfLongEdge) :
+                    findLayerAlignmentsByMIS(layer, lengthOfLongEdge);
+            stacksOfAlignments.add(layerAlignments);
+        }
+        return stacksOfAlignments;
+    }
+
+    /**
+     *
+     * @param layer
+     * @param edgeWeights
+     *          can be null then the weight of each edge is considered to be 1
+     * @return
+     */
+    private LinkedList<Pair<PortValues>> findLayerAlignmentsByMIS(int layer, Map<Edge, Integer> edgeWeights) {
+        //find maximum independent set of the permutation graph defined by the the edges between these two layers;
+        // in this graph, the inter-layer-edges are the vertices and their maximum independent set gives us a largest
+        // set of edges that do not cross pairwise.
+        //We use the linear time algorithm by Koehler and Mouatadid (InfProcLet'16):
+        // "A linear time algorithm to compute a maximum weighted independent set on cocomparability graphs"
+
+        //first find all relevant edges (these will be the veritices of our permutation graph, which is always also a
+        // cocomparability graph. Both the order of vertices on the top and the bottom layer gives us already a valid
+        // ccorder
+        List<PortValues> topLayer = structure.get(layer);
+        List<Pair<PortValues>> ccorder = new ArrayList<>(topLayer.size());
+        List<Integer> ccorderEdgeWeights = new ArrayList<>(topLayer.size());
+        for (PortValues port0 : topLayer) {
+            for (Edge edge : port0.getPort().getEdges()) {
+                PortValues port1 = port2portValues.get(PortUtils.getOtherEndPoint(edge, port0.getPort()));
+                if (port1.getLayer() == (layer + 1)) {
+                    ccorder.add(new Pair<>(port0, port1));
+                    ccorderEdgeWeights.add(edgeWeights == null ? 1 :
+                            edgeWeights.getOrDefault(sugy.getOriginalEdgeExceptForHyperE(edge), 1));
+                }
+            }
+        }
+        //special case if there are no vertices or edges -> return empty list
+        if (ccorder.isEmpty()) {
+            return new LinkedList<>();
+        }
+
+        //now find the permutation of is-size-increasing independent sets
+        //tau contains for each vertex as second entry the assigned independent set and as first entry the weight of
+        // that set
+        //remark: different from the paper, tau is a reverse list! so the last entry is actually the one of v_1 (or v_0)
+        // and the more to the beginning, the higher the index in ccorder (or i resp.), so from right to left
+        LinkedList<org.eclipse.elk.core.util.Pair<Integer, LinkedList<Pair<PortValues>>>> tau = new LinkedList<>();
+        for (int i = 0; i < ccorder.size(); i++) {
+            Pair<PortValues> ai = ccorder.get(i); //the i-th alignment
+            Integer wi = ccorderEdgeWeights.get(i); //weight of ai
+            //find weight and indpendent set of rightmost non-neighbor of (v_i, adj(v_i)); this is done in variable u
+            org.eclipse.elk.core.util.Pair<Integer, LinkedList<Pair<PortValues>>> u = null;
+            for (int j = 0; j < i; j++) {
+                Pair<PortValues> aj = tau.get(j).getSecond().get(0); //the 0-th entry of the is is the owning alignment
+                if (!doCross(aj, ai)) {
+                    u = tau.get(j);
+                    break;
+                }
+            }
+            //if it has a non-neighbor already handled, we can build upon its independent set; otherwise the new is
+            // will just be ai itself
+            LinkedList<Pair<PortValues>> si = new LinkedList<>(Collections.singletonList(ai));
+            int wsi = wi;
+            if (u != null) {
+                si.addAll(u.getSecond());
+                wsi += u.getFirst();
+            }
+            insert(tau, si, wsi);
+        }
+
+        return tau.getFirst().getSecond(); //a maximum independent set is the first entry of tau and the second entry
+        // there is the independent set (the 1st entry there is the weight)
+    }
+
+    private void insert(LinkedList<org.eclipse.elk.core.util.Pair<Integer, LinkedList<Pair<PortValues>>>> tau,
+                        LinkedList<Pair<PortValues>> si, int wsi) {
+        //remember that tau has inverse order, the it stars with largest indpendent sets and then they become smaller
+        ListIterator<org.eclipse.elk.core.util.Pair<Integer, LinkedList<Pair<PortValues>>>> tauIterator =
+                tau.listIterator(0);
+        while (tauIterator.hasNext()) {
+            org.eclipse.elk.core.util.Pair<Integer, LinkedList<Pair<PortValues>>> curr = tauIterator.next();
+            int wCurr = curr.getFirst();
+            if (wCurr < wsi) {
+                //we have to add si before curr -> go one back and then add si
+                tauIterator.previous();
+                break;
+            }
+        }
+        tauIterator.add(new org.eclipse.elk.core.util.Pair<>(wsi, si));
+    }
+
+    private boolean doCross(Pair<PortValues> alignment0, Pair<PortValues> alignment1) {
+        boolean top0First = alignment0.getFirst().getPosition() < alignment1.getFirst().getPosition();
+        boolean bottom0First = alignment0.getSecond().getPosition() < alignment1.getSecond().getPosition();
+        return top0First != bottom0First;
     }
 
     private void determineLengthOfLongEdges(Map<Edge, Integer> lengthOfLongEdge) {
@@ -567,20 +657,36 @@ public class NodePlacement {
         }
     }
 
-    private void fillStackOfCrossingEdges(LinkedList<PortValues[]> stack, PortValues[] stackEntry,
-                                          LinkedList<PortValues[]> removedStackEntriesPotentiallyToBeReAdded,
+    private LinkedList<Pair<PortValues>> findLayerAlignmentsClassically(int layer, Map<Edge, Integer> lengthOfLongEdge) {
+        LinkedList<Pair<PortValues>> stack = new LinkedList<>(); //stack of edges that are made straight
+        //an entry of this stack is the 2 end ports of the corresponding edge, the first for the lower, the second
+        // for the upper port
+        for (PortValues port0 : structure.get(layer)) {
+            for (Edge edge : port0.getPort().getEdges()) {
+                PortValues port1 = port2portValues.get(PortUtils.getOtherEndPoint(edge, port0.getPort()));
+                if (port1.getLayer() == (layer + 1)) {
+                    Pair<PortValues> stackEntry = new Pair<>(port0, port1);
+                    fillStackOfCrossingEdges(stack, stackEntry, new LinkedList<>(), lengthOfLongEdge);
+                }
+            }
+        }
+        return stack;
+    }
+
+    private void fillStackOfCrossingEdges(LinkedList<Pair<PortValues>> stack, Pair<PortValues> stackEntry,
+                                          LinkedList<Pair<PortValues>> removedStackEntriesPotentiallyToBeReAdded,
                                           Map<Edge, Integer> lengthOfLongEdge) {
         while (true) {
             if (stack.isEmpty()) {
                 stack.push(stackEntry);
                 break;
             }
-            PortValues[] top = stack.pop();
+            Pair<PortValues> top = stack.pop();
             // if the upper port values of the top edge of the stack and the current edge are increasing, they don't
             // cross (on this layer) and we can keep them both.
             // However we will discard all edges in removedStackEntriesPotentiallyToBeReAdded that were potentially
             // in between them two because they have lower priority than stackEntry and are in conflict with stackEntry
-            if (top[1].getPosition() < stackEntry[1].getPosition()) {
+            if (top.getSecond().getPosition() < stackEntry.getSecond().getPosition()) {
                 stack.push(top);
                 stack.push(stackEntry);
                 break;
@@ -599,9 +705,10 @@ public class NodePlacement {
                  */
                 //#1.
                 int topLength =
-                        lengthOfLongEdge.getOrDefault(sugy.getOriginalEdgeExceptForHyperE(top[1].getPort().getVertex()),0);
+                        lengthOfLongEdge.getOrDefault(sugy.getOriginalEdgeExceptForHyperE(top.getSecond().getPort().getVertex())
+                        ,0);
                 int stackEntryLength =
-                        lengthOfLongEdge.getOrDefault(sugy.getOriginalEdgeExceptForHyperE(stackEntry[1].getPort().getVertex()),0);
+                        lengthOfLongEdge.getOrDefault(sugy.getOriginalEdgeExceptForHyperE(stackEntry.getSecond().getPort().getVertex()),0);
                 if (topLength > stackEntryLength) {
                     keepTop(stack, removedStackEntriesPotentiallyToBeReAdded, top);
                     break;
@@ -635,8 +742,8 @@ public class NodePlacement {
         }
     }
 
-    private void keepTop(LinkedList<PortValues[]> stack,
-                         LinkedList<PortValues[]> removedStackEntriesPotentiallyToBeReAdded, PortValues[] top) {
+    private void keepTop(LinkedList<Pair<PortValues>> stack,
+                         LinkedList<Pair<PortValues>> removedStackEntriesPotentiallyToBeReAdded, Pair<PortValues> top) {
         stack.push(top);
         //re-add the entries we removed in between back to the stack
         while (!removedStackEntriesPotentiallyToBeReAdded.isEmpty()) {
@@ -644,10 +751,10 @@ public class NodePlacement {
         }
     }
 
-    private void verticalAlignment(List<PortValues[]> edges, boolean reverseOrder) {
-        for (PortValues[] entry : edges) {
-            PortValues bottomPort = reverseOrder ? entry[1] : entry[0];
-            PortValues topPort = reverseOrder ? entry[0] : entry[1];
+    private void verticalAlignment(List<Pair<PortValues>> edges, boolean reverseOrder) {
+        for (Pair<PortValues> entry : edges) {
+            PortValues bottomPort = reverseOrder ? entry.getSecond() : entry.getFirst();
+            PortValues topPort = reverseOrder ? entry.getFirst() : entry.getSecond();
             if (topPort.getAlign() == topPort) {
                 bottomPort.setAlign(topPort);
                 topPort.setRoot(bottomPort.getRoot());
@@ -917,9 +1024,10 @@ public class NodePlacement {
                 PortValues v = layer.get(j);
                 Vertex nodeOfU = dummyPort2unionNode.getOrDefault(u.getPort(), u.getPort().getVertex());
                 Vertex nodeOfV = dummyPort2unionNode.getOrDefault(v.getPort(), v.getPort().getVertex());
-                //also align it to the right border, i.e., v belongs to the
-                if (areInTheSameNonDummyNode(nodeOfV, nodeOfU)
-                        && v.getX() - u.getX() - (v.getWidth() + u.getWidth()) / 2.0 - Math.max(v.getNodeSideShortness(), u.getNodeSideShortness()) > maxPortSpacing) {
+                //also align it to the right border, i.e., v belongs to the right border
+                if (areInTheSameNonDummyNode(nodeOfV, nodeOfU) && !nodeOfU.equals(dummyVertex)
+                        && v.getX() - u.getX() - (v.getWidth() + u.getWidth()) / 2.0
+                        - Math.max(v.getNodeSideShortness(), u.getNodeSideShortness()) > maxPortSpacing) {
                     moveToTheRight(u, nodeOfU);
                 }
             }
@@ -1074,8 +1182,13 @@ public class NodePlacement {
                             !nodeInTheGraph.equals(portVertex)) {
                         portIndexAtVertex = 0;
                         if (nodeInTheGraph != null) {
-                            if (!addDummyPortsForPaddingToOrders &&
-                                    (nodeInTheGraph.getShape() == null || isNanShape(nodeInTheGraph.getShape()))) {
+                            if (!addDummyPortsForPaddingToOrders
+                                    // now we foce overwriting by not checking this next condition any more
+                                    // but this should be ok because we have previously in dummyPortsForWidth()
+                                    // used the pre-set width as a minimum width (which was maybe achieved by
+                                    // inserting dummy ports
+//                                    && (nodeInTheGraph.getShape() == null || isNanShape(nodeInTheGraph.getShape()))
+                            ) {
                                 // one node done - create Rectangle
                                 createNodeShape(layerIndex, nodeInTheGraph, xPos, yPos, portValues);
                             }
@@ -1102,20 +1215,28 @@ public class NodePlacement {
                         }
                     }
                     if (!portVertex.equals(dummyVertex)) {
+
+                        //TODO: port placement s.t. the port starts immediately at the node
+
                         createPortShape(currentY, portValues, layerIndex % 2 == 0, nodeInTheGraph, portIndexAtVertex,
                                 addDummyPortsForPaddingToOrders);
                         ++portIndexAtVertex;
                     }
                 }
                 //for the last we may still need to create a node shape
-                if (nodeInTheGraph != null && !addDummyPortsForPaddingToOrders &&
-                            (nodeInTheGraph.getShape() == null || isNanShape(nodeInTheGraph.getShape()))) {
+                if (nodeInTheGraph != null && !addDummyPortsForPaddingToOrders
+                    // now we foce overwriting by not checking this next condition any more
+                    // but this should be ok because we have previously in dummyPortsForWidth()
+                    // used the pre-set width as a minimum width (which was maybe achieved by
+                    // inserting dummy ports
+//                        && (nodeInTheGraph.getShape() == null || isNanShape(nodeInTheGraph.getShape()))
+                ) {
                     createNodeShape(layerIndex, nodeInTheGraph, xPosOld, yPos, portValues);
                 }
             }
 
             if (layerIndex % 2 == 0) {
-                currentY += heightOfLayers.get(layerIndex / 2) * layerHeight +
+                currentY += heightOfLayers.get(layerIndex / 2) +
                         Math.min(1.0, heightOfLayers.get(layerIndex / 2)) * 2.0 * drawInfo.getBorderWidth();
             } else {
                 currentY += ((2 * drawInfo.getPortHeight()) + drawInfo.getDistanceBetweenLayers());
@@ -1136,15 +1257,18 @@ public class NodePlacement {
     private void createNodeShape(int layerIndex, Vertex nodeInTheGraph, double xPos, double yPos,
                                  PortValues portValues) {
         double width = portValues.getX() - (portValues.getWidth() + delta) / 2.0 - xPos;
-        double height = heightOfLayers.get(layerIndex / 2) * layerHeight +
+        double maxHeightOnLayer = heightOfLayers.get(layerIndex / 2) +
                 Math.min(1.0, heightOfLayers.get(layerIndex / 2)) * 2.0 * drawInfo.getBorderWidth();
+        double height = sugy.getMinHeightForNode(nodeInTheGraph) +
+                Math.min(1.0, heightOfLayers.get(layerIndex / 2)) * 2.0 * drawInfo.getBorderWidth();
+        double diffToMaxHeight = maxHeightOnLayer - height;
         Rectangle nodeShape = (Rectangle) nodeInTheGraph.getShape();
         if (nodeShape == null) {
             nodeShape = new Rectangle();
             nodeInTheGraph.setShape(nodeShape);
         }
         nodeShape.x = xPos;
-        nodeShape.y = yPos;
+        nodeShape.y = yPos + diffToMaxHeight * 0.5; //height offset if we are not as high as the maximum
         nodeShape.width = width;
         nodeShape.height = height;
     }
@@ -1184,7 +1308,7 @@ public class NodePlacement {
     }
 
     private void createMainLabel (LabeledObject lo) {
-        Label newLabel = new TextLabel("dummyPort" + portnumber++);
+        Label newLabel = new TextLabel("dummyPort" + portNumber++);
         lo.getLabelManager().addLabel(newLabel);
         lo.getLabelManager().setMainLabel(newLabel);
     }

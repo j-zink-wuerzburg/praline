@@ -1,18 +1,22 @@
 package de.uniwue.informatik.praline.layouting.layered.algorithm;
 
 import de.uniwue.informatik.praline.datastructure.graphs.*;
+import de.uniwue.informatik.praline.datastructure.shapes.Shape;
 import de.uniwue.informatik.praline.datastructure.utils.PortUtils;
 import de.uniwue.informatik.praline.io.output.svg.SVGDrawer;
 import de.uniwue.informatik.praline.io.output.util.DrawingInformation;
 import de.uniwue.informatik.praline.io.output.util.DrawingUtils;
 import de.uniwue.informatik.praline.layouting.PralineLayouter;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimization;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimization2;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.CrossingMinimizationMethod;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.crossingreduction.HandlingDeadEnds;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.drawing.DrawingPreparation;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionAssignment;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgeorienting.DirectionMethod;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.edgerouting.EdgeRouting;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.layerassignment.*;
+import de.uniwue.informatik.praline.layouting.layered.algorithm.nodeplacement.AlignmentParameters;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.nodeplacement.NodePlacement;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.preprocessing.ConnectedComponentClusterer;
 import de.uniwue.informatik.praline.layouting.layered.algorithm.preprocessing.DummyCreationResult;
@@ -26,12 +30,16 @@ import java.util.*;
 public class SugiyamaLayouter implements PralineLayouter {
 
     public static final DirectionMethod DEFAULT_DIRECTION_METHOD = DirectionMethod.FORCE;
-    public static final LayerAssignmentMethod DEFAULT_LAYER_ASSSIGNMENT_METHOD = LayerAssignmentMethod.NETWORK_SIMPLEX;
+    public static final LayerAssignmentMethod DEFAULT_LAYER_ASSIGNMENT_METHOD = LayerAssignmentMethod.NETWORK_SIMPLEX;
     public static final int DEFAULT_NUMBER_OF_FD_ITERATIONS = 10;
     public static final CrossingMinimizationMethod DEFAULT_CROSSING_MINIMIZATION_METHOD =
             CrossingMinimizationMethod.PORTS;
     public static final int DEFAULT_NUMBER_OF_CM_ITERATIONS = 5; //iterations for crossing minimization
     public static final boolean DEFAULT_DETERMINE_SIDE_LENGTHS_OF_NODES = false; //for NodePlacement; see there
+    public static final AlignmentParameters.Method
+            DEFAULT_ALIGNMENT_METHOD = AlignmentParameters.Method.FIRST_COMES; //for NodePlacement; see there
+    public static final AlignmentParameters.Preference
+            DEFAULT_ALIGNMENT_PREFERENCE = AlignmentParameters.Preference.LONG_EDGE; //for NodePlacement; see there
 
 
 
@@ -70,6 +78,8 @@ public class SugiyamaLayouter implements PralineLayouter {
     private List<PortGroup> dummyPortGroupsForEdgeBundles;
     private Map<EdgeBundle, Collection<Edge>> originalEdgeBundles;
     private Map<PortPairing, PortPairing> replacedPortPairings;
+    private Map<Vertex, Double> preSetWidth;
+    private Map<Vertex, Double> preSetHeight;
 
     //additional structures
 
@@ -87,6 +97,7 @@ public class SugiyamaLayouter implements PralineLayouter {
     private Set<Object> deviceVertices;
 
     //internal
+    private boolean useFDLayoutForInitialNodeOrder;
     private DirectionAssignment da;
 
     public SugiyamaLayouter(Graph graph) {
@@ -131,30 +142,31 @@ public class SugiyamaLayouter implements PralineLayouter {
 
     @Override
     public void computeLayout() {
-        computeLayout(DEFAULT_DIRECTION_METHOD, DEFAULT_LAYER_ASSSIGNMENT_METHOD, DEFAULT_NUMBER_OF_FD_ITERATIONS,
-                DEFAULT_CROSSING_MINIMIZATION_METHOD, DEFAULT_NUMBER_OF_CM_ITERATIONS);
+        computeLayout(DEFAULT_DIRECTION_METHOD, DEFAULT_LAYER_ASSIGNMENT_METHOD, DEFAULT_NUMBER_OF_FD_ITERATIONS,
+                DEFAULT_CROSSING_MINIMIZATION_METHOD, DEFAULT_NUMBER_OF_CM_ITERATIONS, DEFAULT_ALIGNMENT_METHOD,
+                DEFAULT_ALIGNMENT_PREFERENCE);
     }
 
     /**
-     *
-     * @param directionMethod
+     *  @param directionMethod
      * @param layerAssignmentMethod
      * @param numberOfIterationsFD
-     *      when employing a force-directed algo, it uses so many iterations with different random start positions
-     *      and takes the one that yields the fewest crossings.
-     *      If you use anything different from {@link DirectionMethod#FORCE}, then this value will be ignored.
+ *      when employing a force-directed algo, it uses so many iterations with different random start positions
+ *      and takes the one that yields the fewest crossings.
+ *      If you use anything different from {@link DirectionMethod#FORCE}, then this value will be ignored.
      * @param cmMethod
      * @param numberOfIterationsCM
-     *      for the crossing minimization phase you may have several independent random iterations of which the one
-     *      that yields the fewest crossings of edges between layers is taken.
+*      for the crossing minimization phase you may have several independent random iterations of which the one
      */
     public void computeLayout(DirectionMethod directionMethod, LayerAssignmentMethod layerAssignmentMethod,
-                              int numberOfIterationsFD, CrossingMinimizationMethod cmMethod, int numberOfIterationsCM) {
+                              int numberOfIterationsFD, CrossingMinimizationMethod cmMethod, int numberOfIterationsCM,
+                              AlignmentParameters.Method alignmentMethod,
+                              AlignmentParameters.Preference alignmentPreference) {
         construct();
         assignDirections(directionMethod, numberOfIterationsFD);
-        assignLayers(layerAssignmentMethod);
+        assignLayers(layerAssignmentMethod, directionMethod);
         createDummyNodesAndDoCrossingMinimization(cmMethod, numberOfIterationsCM);
-        nodePositioning();
+        nodePositioning(alignmentMethod, alignmentPreference);
         edgeRouting();
         prepareDrawing();
     }
@@ -168,6 +180,23 @@ public class SugiyamaLayouter implements PralineLayouter {
 
     public void construct() {
         if (isSingleComponent) {
+            //register pre-set node sizes
+            for (Vertex vertex : graph.getVertices()) {
+                Shape shape = vertex.getShape();
+                if (shape != null) {
+                    if (shape instanceof Rectangle2D) {
+                        double width = ((Rectangle2D) shape).getWidth();
+                        if (Double.isFinite(width)) {
+                            preSetWidth.put(vertex, width);
+                        }
+                        double height = ((Rectangle2D) shape).getHeight();
+                        if (Double.isFinite(height)) {
+                            preSetHeight.put(vertex, height);
+                        }
+                    }
+                }
+            }
+            //do preprocessing
             GraphPreprocessor graphPreprocessor = new GraphPreprocessor(this);
             graphPreprocessor.construct();
         }
@@ -234,13 +263,18 @@ public class SugiyamaLayouter implements PralineLayouter {
 //        }
 //    }
 
-    public void assignLayers(LayerAssignmentMethod method) {
+    public void assignLayers(LayerAssignmentMethod layerAssignmentMethod, DirectionMethod directionMethod) {
         if (isSingleComponent) {
             LayerAssignment la = null;
-            if (method == LayerAssignmentMethod.NETWORK_SIMPLEX) {
-                la = new LayerAssignmentNetworkSimplex(this);
+            useFDLayoutForInitialNodeOrder = layerAssignmentMethod != LayerAssignmentMethod.OLD_NETWORK_SIMPLEX
+                    && directionMethod == DirectionMethod.FORCE;
+            if (layerAssignmentMethod == LayerAssignmentMethod.NETWORK_SIMPLEX) {
+                la = new LayerAssignmentNetworkSimplex(this, da);
             }
-            else if (method == LayerAssignmentMethod.FD_POSITION) {
+            else if (layerAssignmentMethod == LayerAssignmentMethod.OLD_NETWORK_SIMPLEX) {
+                la = new OldLayerAssignmentNetworkSimplex(this);
+            }
+            else if (layerAssignmentMethod == LayerAssignmentMethod.FD_POSITION) {
                 la = new LayerAssignmentForceDirected(this, da);
             }
             nodeToRank = la.assignLayers();
@@ -251,7 +285,7 @@ public class SugiyamaLayouter implements PralineLayouter {
         }
         else {
             for (SugiyamaLayouter componentLayouter : componentLayouters) {
-                componentLayouter.assignLayers(method);
+                componentLayouter.assignLayers(layerAssignmentMethod, directionMethod);
             }
         }
     }
@@ -274,7 +308,8 @@ public class SugiyamaLayouter implements PralineLayouter {
         if (isSingleComponent) {
             createDummyNodesAndDoCrossingMinimization(cmMethod,
                     CrossingMinimization.DEFAULT_MOVE_PORTS_ADJ_TO_TURNING_DUMMIES_TO_THE_OUTSIDE,
-                    CrossingMinimization.DEFAULT_PLACE_TURNING_DUMMIES_NEXT_TO_THEIR_VERTEX, numberOfIterations);
+                    CrossingMinimization.DEFAULT_PLACE_TURNING_DUMMIES_NEXT_TO_THEIR_VERTEX,
+                    CrossingMinimization.DEFAULT_HANDLING_DEAD_ENDS, numberOfIterations);
         }
         else {
             for (SugiyamaLayouter componentLayouter : componentLayouters) {
@@ -286,20 +321,23 @@ public class SugiyamaLayouter implements PralineLayouter {
     public void createDummyNodesAndDoCrossingMinimization(CrossingMinimizationMethod cmMethod,
                                                           boolean movePortsAdjToTurningDummiesToTheOutside,
                                                           boolean placeTurningDummiesNextToTheirVertex,
+                                                          HandlingDeadEnds handlingDeadEnds,
                                                           int numberOfIterations) {
         if (isSingleComponent) {
             //first crossing minimization phase with all ports on the side of its edge direction
             DummyNodeCreation dnc = new DummyNodeCreation(this);
             dnc.assignWrongSidePortsTemporaryToOtherSide();
             dnc.createDummyNodesForEdges();
-            CrossingMinimization cm1 = new CrossingMinimization(this);
-            SortingOrder result = cm1.layerSweepWithBarycenterHeuristic(cmMethod, orders, true,
-                    movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex, false);
+            CrossingMinimization2 cm1 = new CrossingMinimization2(this);
+            SortingOrder result = cm1.layerSweepWithBarycenterHeuristic(cmMethod, orders,
+                    !useFDLayoutForInitialNodeOrder, movePortsAdjToTurningDummiesToTheOutside,
+                    placeTurningDummiesNextToTheirVertex, false, handlingDeadEnds);
             orders = result;
             int crossings = countCrossings(result);
             for (int i = 1; i < numberOfIterations; i++) {
                 result = cm1.layerSweepWithBarycenterHeuristic(cmMethod, orders, true,
-                        movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex, false);
+                        movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex, false,
+                        handlingDeadEnds);
                 int crossingsNew = countCrossings(result);
                 if (crossingsNew < crossings) {
                     crossings = crossingsNew;
@@ -318,33 +356,37 @@ public class SugiyamaLayouter implements PralineLayouter {
             for (Edge edge : dummyNodeData.getDummyEdge2RealEdge().keySet()) {
                 this.dummyEdge2RealEdge.put(edge, dummyNodeData.getDummyEdge2RealEdge().get(edge));
             }
-            CrossingMinimization cm2 = new CrossingMinimization(this);
+            CrossingMinimization2 cm2 = new CrossingMinimization2(this);
             orders = cm2.layerSweepWithBarycenterHeuristic(cmMethod, orders, false,
-                    movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex, true);
+                    movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex, true,
+                    handlingDeadEnds);
         }
         else {
             for (SugiyamaLayouter componentLayouter : componentLayouters) {
                 componentLayouter.createDummyNodesAndDoCrossingMinimization(cmMethod,
                         movePortsAdjToTurningDummiesToTheOutside, placeTurningDummiesNextToTheirVertex,
-                        numberOfIterations);
+                        handlingDeadEnds, numberOfIterations);
             }
         }
     }
 
-    public void nodePositioning() {
+    public void nodePositioning(AlignmentParameters.Method alignmentMethod,
+                                AlignmentParameters.Preference alignmentPreference) {
         if (isSingleComponent) {
             NodePlacement np = new NodePlacement(this, orders, drawInfo);
-            dummyPortsForLabelPadding = np.placeNodes(DEFAULT_DETERMINE_SIDE_LENGTHS_OF_NODES);
+            dummyPortsForLabelPadding = np.placeNodes(DEFAULT_DETERMINE_SIDE_LENGTHS_OF_NODES, alignmentMethod,
+                    alignmentPreference);
         }
         else {
             for (SugiyamaLayouter componentLayouter : componentLayouters) {
-                componentLayouter.nodePositioning();
+                componentLayouter.nodePositioning(alignmentMethod, alignmentPreference);
             }
         }
     }
 
     /**
-     * only needed if {@link SugiyamaLayouter#nodePositioning()} is not used.
+     * only needed if
+     * {@link SugiyamaLayouter#nodePositioning(AlignmentParameters.Method, AlignmentParameters.Preference)} is not used.
      */
     public void nodePadding() {
         if (isSingleComponent) {
@@ -445,6 +487,8 @@ public class SugiyamaLayouter implements PralineLayouter {
         edgeToEnd = new LinkedHashMap<>();
         nodeToOutgoingEdges = new LinkedHashMap<>();
         nodeToIncomingEdges = new LinkedHashMap<>();
+        preSetWidth = new LinkedHashMap<>();
+        preSetHeight = new LinkedHashMap<>();
     }
 
     // other steps //
@@ -865,14 +909,16 @@ public class SugiyamaLayouter implements PralineLayouter {
                 return 0;
             }
             if (isPlug(node) || vertexGroups.containsKey(node)) {
-                double minWidth = Double.POSITIVE_INFINITY;
+                double maxWidth = 0;
                 VertexGroup vertexGroup = isPlug(node) ? plugs.get(node) : vertexGroups.get(node);
                 for (Vertex originalVertex : vertexGroup.getAllRecursivelyContainedVertices()) {
-                    minWidth = Math.min(minWidth, drawInfo.computeMinVertexWidth(originalVertex));
+                    maxWidth = Math.max(maxWidth,
+                            Math.max(preSetWidth.getOrDefault(originalVertex, 0d),
+                                    drawInfo.computeMinVertexWidth(originalVertex)));
                 }
-                return minWidth;
+                return maxWidth;
             }
-            return drawInfo.computeMinVertexWidth(node);
+            return Math.max(preSetWidth.getOrDefault(node, 0d), drawInfo.computeMinVertexWidth(node));
         }
         else {
             for (SugiyamaLayouter componentLayouter : componentLayouters) {
@@ -884,7 +930,35 @@ public class SugiyamaLayouter implements PralineLayouter {
         }
     }
 
-    public double getWidthForPort(Port port) {
+    public double getMinHeightForNode(Vertex node) {
+        if (isSingleComponent) {
+            if (isDummy(node)) {
+                return 0;
+            }
+            if (isPlug(node) || vertexGroups.containsKey(node)) {
+                double maxHeight = 0;
+                VertexGroup vertexGroup = isPlug(node) ? plugs.get(node) : vertexGroups.get(node);
+                for (Vertex originalVertex : vertexGroup.getAllRecursivelyContainedVertices()) {
+                    maxHeight = Math.max(maxHeight,
+                            Math.max(preSetHeight.getOrDefault(originalVertex, 0d),
+                                    drawInfo.computeMinVertexHeight(originalVertex)));
+                }
+                return maxHeight;
+            }
+            return Math.max(preSetHeight.getOrDefault(node, 0d), drawInfo.computeMinVertexHeight(node));
+        }
+        else {
+            for (SugiyamaLayouter componentLayouter : componentLayouters) {
+                if (componentLayouter.getGraph().getVertices().contains(node)) {
+                    return componentLayouter.getMinWidthForNode(node);
+                }
+            }
+            return -1;
+        }
+    }
+
+
+        public double getWidthForPort(Port port) {
         if (isSingleComponent) {
             //first find original port
             Port originalPort = port;
