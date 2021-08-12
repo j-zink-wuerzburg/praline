@@ -97,7 +97,7 @@ public class KielerLayouter implements PralineLayouter {
     public void computeLayout() {
         computeLayeredDrawing();
 
-        Graph pralineGraph = getStoredPralineGraph();
+        Graph pralineGraph = sugiyForInternalUse.getGraphWithPreprocessedVertices();
         writeResultToPralineGraph(pralineGraph);
 
         analyzeOrderings();
@@ -125,7 +125,8 @@ public class KielerLayouter implements PralineLayouter {
     }
 
     private Graph getStoredPralineGraph() {
-        return sugiyForInternalUse.getGraphWithPreprocessedVertices();
+        return sugiyForInternalUse.getGraph();
+//        return sugiyForInternalUse.getGraphWithPreprocessedVertices();
     }
 
     private ElkNode computeLayeredDrawing() {
@@ -268,21 +269,42 @@ public class KielerLayouter implements PralineLayouter {
         ElkGraphFactory elkGraphFactory = new ElkGraphFactoryImpl();
         ElkNode wholeGraph = elkGraphFactory.createElkNode();
         //fix port pairings in praline graph
-        int iterationsOfPortPairRepairing = 2;
+        Map<Vertex, List<Port>> bottomPortOrder = sugiyForInternalUse.getOrders().getBottomPortOrder();
+        Map<Vertex, List<Port>> topPortOrder = sugiyForInternalUse.getOrders().getTopPortOrder();
+        int iterationsOfPortPairRepairing = 3;
         for (Vertex pralinePlug : sugiyForInternalUse.getPlugs().keySet()) {
-            //in the first iterationsOfPortPairRepairing we use the "normal" port pairing repair algorithm to just
-            // have the port pairings separated from each other
-            //in the last run, we want to have the corresponding ports on both sides have *exactly* the same index
-            // among the ordering of *all* ports of their vertex side. We need this to make kieler place these ports
-            // (of a port pairing) on the same vertical line.
-            for (int i = 0; i < iterationsOfPortPairRepairing + 1; i++) {
-                sugiyForInternalUse.getDummyPortsForLabelPadding().putIfAbsent(pralinePlug, new LinkedHashSet<>());
-                Set<Port> dummyPorts = sugiyForInternalUse.getDummyPortsForLabelPadding().get(pralinePlug);
-                CrossingMinimization.repairPortPairings(sugiyForInternalUse, pralinePlug,
-                        sugiyForInternalUse.getOrders().getBottomPortOrder(),
-                        sugiyForInternalUse.getOrders().getTopPortOrder(), false,
-                        i >= iterationsOfPortPairRepairing - 1, i < iterationsOfPortPairRepairing,
-                        i == iterationsOfPortPairRepairing, i == iterationsOfPortPairRepairing ? dummyPorts : null);
+            boolean allPortPairingsSeparated = false;
+            int maxTries = 50;
+            int tries = 0;
+            do {
+
+                //in the first iterationsOfPortPairRepairing we use the "normal" port pairing repair algorithm to just
+                // have the port pairings separated from each other
+                //in the last run, we want to have the corresponding ports on both sides have *exactly* the same index
+                // among the ordering of *all* ports of their vertex side. We need this to make kieler place these ports
+                // (of a port pairing) on the same vertical line.
+                for (int i = 0; i < iterationsOfPortPairRepairing; i++) {
+                    sugiyForInternalUse.getDummyPortsForLabelPadding().putIfAbsent(pralinePlug, new LinkedHashSet<>());
+                    Set<Port> dummyPorts = sugiyForInternalUse.getDummyPortsForLabelPadding().get(pralinePlug);
+                    boolean isFinalSorting = i >= iterationsOfPortPairRepairing - 1;
+                        allPortPairingsSeparated = CrossingMinimization.repairPortPairings(sugiyForInternalUse,
+                                pralinePlug, bottomPortOrder, topPortOrder, false, isFinalSorting,
+                                isFinalSorting, isFinalSorting, isFinalSorting ? dummyPorts : null);
+                }
+            }
+            while (!allPortPairingsSeparated && tries++ < maxTries);
+            //check port pairings
+            if (!allPortPairingsSeparated) {
+                System.out.println("Warning! No valid arrangement of port pairings found for plug "
+                        + sugiyForInternalUse.getPlugs().get(pralinePlug).getContainedVertices() + ".");
+            }
+            //check port groups
+            List<Port> allPortsCombined = new ArrayList<>(bottomPortOrder.get(pralinePlug));
+            allPortsCombined.addAll(topPortOrder.get(pralinePlug));
+            if (!PortUtils.arrangmentOfPortsIsValidAccordingToPortGroups(allPortsCombined, pralinePlug.getPortCompositions())) {
+                System.out.println("Warning! Constraints due to port groups " +
+                        "not completely fulfilled (possibly because of conflicts with port pairings) at plug "
+                        + sugiyForInternalUse.getPlugs().get(pralinePlug).getContainedVertices() + ".");
             }
         }
         //transfer the just found port ordering to the lists of vertices and port groups
@@ -308,8 +330,8 @@ public class KielerLayouter implements PralineLayouter {
                 vertex.setWidth(((Rectangle) pralineVertexShape).getWidth());
             }
             else {
-                int numberOfPorts = Math.max(sugiyForInternalUse.getOrders().getTopPortOrder().get(pralineVertex).size(),
-                        sugiyForInternalUse.getOrders().getBottomPortOrder().get(pralineVertex).size());
+                int numberOfPorts = Math.max(topPortOrder.get(pralineVertex).size(),
+                        bottomPortOrder.get(pralineVertex).size());
                 vertex.setWidth(Math.max(sugiyForInternalUse.getMinWidthForNode(pralineVertex),
                         numberOfPorts * (drawInfo.getPortWidth() + drawInfo.getPortSpacing())
                                 + drawInfo.getPortSpacing()));

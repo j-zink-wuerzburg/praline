@@ -72,18 +72,32 @@ public class CsvDataExtraction {
 //                    "2021-08-02_11-01-23"; //rr + removing the current values map from crossing reduction
 //                    "2021-08-04_23-06-45"; //trying to avoid more maps in crossing reduction
 //                    "2021-08-05_14-52-31"; //rr + trying to avoid more maps in crossing reduction
-                    "2021-08-05_19-03-14"; //first test run for journal paper, 1 execution per graph
+//                    "2021-08-05_19-03-14"; //first test run for journal paper, 1 execution per graph
+//                    "2021-08-07_10-47-21"; //old test run for journal, 10 execution per graph, praline-package-2020-05-18+
+//                    "2021-08-07_15-44-10"; //old test run for journal, 10 execution per graph, denkbares_08_06_2021+
+//                    "2021-08-11_15-19-06"; //test run 5 iterations repairPortPairings, praline-package-2020-05-18
+//                    "2021-08-11_15-44-04"; //test run 4 iterations repairPortPairings, praline-package-2020-05-18; incomplete
+//                    "2021-08-11_20-27-45"; //test run improved repairPortPairings, praline-package-2020-05-18; incomplete
+//                    "2021-08-12_02-30-58"; //test run for journal, 10 execution per graph, praline-package-2020-05-18+
+//                    "2021-08-12_11-13-10"; //cm run for journal, 10 execution per graph, praline-package-2020-05-18+
+//                    "2021-08-12_13-26-16"; //cm run for journal, 10 execution per graph, praline-package-2020-05-18+
+                    "ctga-all-tests2021-08-12"; //test run for cgta, 10 execution per graph, praline-package-2020-05-18+
 
 
     private static final String[] DATA_DIRS =
             {
 //                    "DA_lc-praline-package-2020-05-18",
-                    "DA_praline-package-2020-05-18",
-                    "DA_generated_2020-08-20_04-42-39",
+//                    "DA_generated_2020-08-20_04-42-39",
+//                    "DA_praline-package-2020-05-18",
+//                    "DA_generated_2021-08-06_17-27-03",
+//                    "DA_denkbares_08_06_2021/praline",
+//                    "DA_generated_2021-08-07_15-24-08",
 //                    "CM_lc-praline-package-2020-05-18",
+//                    "CM_generated_2020-08-20_04-42-39"
                     "CM_praline-package-2020-05-18",
-                    "CM_generated_2020-08-20_04-42-39"
-//                    "CM_denkbares_08_06_2021/praline"
+                    "CM_generated_2021-08-06_17-27-03"
+//                    "CM_denkbares_08_06_2021/praline",
+//                    "CM_generated_2021-08-07_15-24-08"
             };
 
 
@@ -94,7 +108,7 @@ public class CsvDataExtraction {
     private static final DecimalFormat OUTPUT_FORMAT_MEAN_RELATIVE_TO =
             new DecimalFormat("#", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat OUTPUT_FORMAT_SD =
-            new DecimalFormat("#.0", DecimalFormatSymbols.getInstance(Locale.US));
+            new DecimalFormat("#.00", DecimalFormatSymbols.getInstance(Locale.US));
     private static final DecimalFormat OUTPUT_PERCENT_FORMAT =
             new DecimalFormat("#", DecimalFormatSymbols.getInstance(Locale.US));
     private static final String PERCENT_SYMBOL = ""; //" \\%";
@@ -104,9 +118,9 @@ public class CsvDataExtraction {
     private static final String[] CONSIDER_FILES = {"noc", "nob", "nodn", "space", "time"};
 
     private static final String[] SORT_ENTRIES_ORDER = {"fd", "bfs", "ran",
-            "ports", "mixed", "nodes", "pseudoBCs", "otherSide", "relPos", "kieler"};
+            "nodes", "mixed", "ports", "pseudoBCs", "otherSide", "relPos", "kieler"};
 
-    //set to an unkonwn value or null to have relative to the best
+    //set to an unknown value or null to have relative to the best
     private static final List<String> ENTRIES_RELATIVE_TO = Arrays.asList(
             "ran",
             "ran-ns",
@@ -125,30 +139,40 @@ public class CsvDataExtraction {
             put("bfs-ns", "\\bfs");
             put("ran-ns", "\\rand");
             put("kieler", "\\kieler");
-//            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\ports + \\pseudobc");
-//            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\mixed + \\pseudobc");
-//            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "\\vertices + \\pseudobc");
-//            put("ports-noMove-placeTurnings-otherSide-firstComes-noPref", "\\ports + \\oppositebc");
-//            put("mixed-noMove-placeTurnings-otherSide-firstComes-noPref", "\\mixed + \\oppositebc");
-//            put("nodes-noMove-placeTurnings-otherSide-firstComes-noPref", "\\vertices + \\oppositebc");
-//            put("ports-noMove-placeTurnings-relPos-firstComes-noPref", "\\ports + \\relpos");
-//            put("mixed-noMove-placeTurnings-relPos-firstComes-noPref", "\\mixed + \\relpos");
-//            put("nodes-noMove-placeTurnings-relPos-firstComes-noPref", "\\vertices + \\relpos");
-            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "p + p");
-            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "m + p");
-            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-noPref", "v + p");
-            put("ports-noMove-placeTurnings-otherSide-firstComes-noPref", "p + o");
-            put("mixed-noMove-placeTurnings-otherSide-firstComes-noPref", "m + o");
-            put("nodes-noMove-placeTurnings-otherSide-firstComes-noPref", "v + o");
-            put("ports-noMove-placeTurnings-relPos-firstComes-noPref", "p + r");
-            put("mixed-noMove-placeTurnings-relPos-firstComes-noPref", "m + r");
-            put("nodes-noMove-placeTurnings-relPos-firstComes-noPref", "v + r");
+            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "\\ports");
+            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "\\mixed");
+            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "\\vertices");
+            put("ports-noMove-placeTurnings-otherSide-firstComes-prefLongE", "\\ports");
+            put("mixed-noMove-placeTurnings-otherSide-firstComes-prefLongE", "\\mixed");
+            put("nodes-noMove-placeTurnings-otherSide-firstComes-prefLongE", "\\vertices");
+            put("ports-noMove-placeTurnings-relPos-firstComes-prefLongE", "\\ports");
+            put("mixed-noMove-placeTurnings-relPos-firstComes-prefLongE", "\\mixed");
+            put("nodes-noMove-placeTurnings-relPos-firstComes-prefLongE", "\\vertices");
+            put("ports--noMove--placeTurnings-pseudoBCs-firstComes-prefLongE", "\\ports");
+            put("mixed--noMove--placeTurnings-pseudoBCs-firstComes-prefLongE", "\\mixed");
+            put("nodes--noMove--placeTurnings-pseudoBCs-firstComes-prefLongE", "\\vertices");
+            put("ports--noMove--placeTurnings-otherSide-firstComes-prefLongE", "\\ports");
+            put("mixed--noMove--placeTurnings-otherSide-firstComes-prefLongE", "\\mixed");
+            put("nodes--noMove--placeTurnings-otherSide-firstComes-prefLongE", "\\vertices");
+            put("ports--noMove--placeTurnings-relPos-firstComes-prefLongE", "\\ports");
+            put("mixed--noMove--placeTurnings-relPos-firstComes-prefLongE", "\\mixed");
+            put("nodes--noMove--placeTurnings-relPos-firstComes-prefLongE", "\\vertices");
+//            put("ports-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "p + p");
+//            put("mixed-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "m + p");
+//            put("nodes-noMove-placeTurnings-pseudoBCs-firstComes-prefLongE", "v + p");
+//            put("ports-noMove-placeTurnings-otherSide-firstComes-prefLongE", "p + o");
+//            put("mixed-noMove-placeTurnings-otherSide-firstComes-prefLongE", "m + o");
+//            put("nodes-noMove-placeTurnings-otherSide-firstComes-prefLongE", "v + o");
+//            put("ports-noMove-placeTurnings-relPos-firstComes-prefLongE", "p + r");
+//            put("mixed-noMove-placeTurnings-relPos-firstComes-prefLongE", "m + r");
+//            put("nodes-noMove-placeTurnings-relPos-firstComes-prefLongE", "v + r");
         }
     };
 
     private static final List<String> IGNORE_FIELDS_CONTAINING_STRING =
-            Arrays.asList("#vtcs", "-ons", "-fdp", "-move", "-noPlaceTurnings", "-mis", "-prefLongE", "-area",
-                    "-ratio");
+            Arrays.asList("#vtcs"
+//                    );
+                    , "-ons", "-fdp", "-move", "-noPlaceTurnings", "-mis", "-noPref", "-pseudoBCs", "-otherSide");
 
     public static void main(String[] args) {
         for (String dataDir : DATA_DIRS) {
@@ -432,9 +456,9 @@ public class CsvDataExtraction {
         }
         System.out.println(" \\\\");
         for (String method : methods) {
-            System.out.print(" & $\\mu$" + headLineSD + " & $\\beta$");
+            System.out.print("& $\\mu$" + headLineSD + " & $\\beta$ ");
         }
-        System.out.println(" \\\\");
+        System.out.println("\\\\");
         System.out.println("\\hline");
     }
 
